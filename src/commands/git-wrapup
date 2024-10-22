@@ -6,7 +6,8 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-COMMIT_MSG="$1"
+# Convert commit message to lowercase
+COMMIT_MSG=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 
 # Get the current branch name
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
