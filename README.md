@@ -17,3 +17,15 @@ After running the installation script, you will be able to use the custom Git co
 | `git reform`  | Stashes changes, rebases from `develop`, optionally checks out or creates a target branch, and pops the stash. |
 
 Each command is designed to automate and streamline common Git workflows, reducing the need for manual intervention and minimizing the risk of errors.
+
+## Running Tests
+
+To ensure that everything is working correctly, you can run the provided tests using the `bashunit` testing framework. The tests are located in the `tests` directory.
+
+To run the tests, execute the following command in your terminal:
+
+```sh
+./lib/bashunit ./tests
+```
+
+This will execute all the test scripts and display the results, helping you verify that the custom Git commands are functioning as expected.
