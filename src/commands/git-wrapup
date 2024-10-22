@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Check if a commit message was provided
+if [ -z "$1" ]; then
+    echo "Error: Commit message is required."
+    exit 1
+fi
+
+COMMIT_MSG="$1"
+
+# Get the current branch name
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Fail if the current branch is develop or main
+if [ "$CURRENT_BRANCH" == "develop" ] || [ "$CURRENT_BRANCH" == "main" ]; then
+    echo "Error: Cannot run this command on the develop or main branch."
+    exit 1
+fi
+
+# Stash changes
+git stash
+
+# Pull and rebase from develop
+git pull origin develop --rebase
+
+# Pop stash
+git stash pop
+
+# Run pnpm changeset and wait for it to complete
+pnpm changeset
+if [ $? -ne 0 ]; then
+    echo "Error: pnpm changeset command failed."
+    exit 1
+fi
+
+# Stage all changes
+git add .
+
+# Commit with the provided message
+git commit -m "$COMMIT_MSG"
+
+# Push the current branch upstream
+git push --set-upstream origin "$CURRENT_BRANCH"
