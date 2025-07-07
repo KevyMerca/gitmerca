@@ -1,6 +1,6 @@
 # Gitmerca 🛠️
 
-Enhance your Git workflow with Gitmerca (v2.0.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
+Enhance your Git workflow with Gitmerca (v2.1.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
 
 For a look at what's coming next, check out our [ROADMAP.md](ROADMAP.md) - we've got exciting features planned! 🗺️
 
@@ -41,11 +41,67 @@ Note: After uninstalling, remember to run `source ~/.zshrc` to update your curre
 
 ## 🎯 Available Commands
 
-| Command       | Description                                                                 |
-|---------------|-----------------------------------------------------------------------------|
-| `git wrapup`  | Automates the mercateam PR workflow: stashes changes, rebases from `develop`, runs `pnpm changeset`, commits with your message, pushes changes, and opens a PR in your browser. |
-| `git reform`  | Streamlines branch management according to mercateam patterns: stashes changes, rebases from `develop`, optionally checks out or creates a target branch, and restores your changes. |
-| `git cleanup` | Keeps your local branches tidy by removing all local branches except `develop` (mercateam's main integration branch). |
+### git wrapup
+
+Automates the mercateam PR workflow with a single command.
+
+```sh
+git wrapup [options] <commit-message>
+
+Options:
+  -b, --branch <name>    Create or switch to branch before changes
+                        (allows running from develop branch)
+  -h, --help            Show help message
+```
+
+Features:
+- 📦 Stashes all changes (including untracked files)
+- 🔄 Rebases from develop
+- 📝 Runs pnpm changeset
+- 💾 Commits with your message
+- 🚀 Pushes changes and opens PR
+
+### git reform
+
+Streamlines branch management according to mercateam patterns.
+
+```sh
+git reform [options] [target-branch]
+
+Options:
+  -f, --force           Skip confirmation prompt
+  -h, --help           Show help message
+```
+
+Features:
+- 💾 Preserves your changes
+- 🔄 Rebases from develop
+- 🌿 Optionally creates/switches branches
+- 📦 Restores your changes
+
+### git cleanup
+
+Keeps your workspace tidy by removing unnecessary local branches.
+
+```sh
+git cleanup [options]
+
+Options:
+  -y, --yes            Skip confirmation prompt
+  -h, --help          Show help message
+```
+
+Features:
+- 🔍 Shows branches to be removed
+- ⚡ Preserves develop branch
+- 🧹 Cleans up local branches
+- ✨ Provides clear feedback
+
+All commands include:
+- 🎨 Colored output for better visibility
+- ❌ Clear error messages
+- 🛡️ Safety confirmations
+- 📋 Detailed progress feedback
 
 ## 🏗️ Project Structure
 

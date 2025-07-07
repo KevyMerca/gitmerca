@@ -11,16 +11,22 @@ DEFAULT_BRANCH="feature/test-branch"
 DEFAULT_BRANCHES="*develop
 feature-branch
 target-branch"
+DEFAULT_HAS_CHANGES=true
+DEFAULT_BRANCH_EXISTS=false
 
 # Mock state
 MOCK_BRANCH="$DEFAULT_BRANCH"
 MOCK_BRANCHES="$DEFAULT_BRANCHES"
+MOCK_HAS_CHANGES="$DEFAULT_HAS_CHANGES"
+MOCK_BRANCH_EXISTS="$DEFAULT_BRANCH_EXISTS"
 MOCK_EXIT_CODE=0
 
 # Reset mock state
 function reset_mocks() {
     MOCK_BRANCH="$DEFAULT_BRANCH"
     MOCK_BRANCHES="$DEFAULT_BRANCHES"
+    MOCK_HAS_CHANGES="$DEFAULT_HAS_CHANGES"
+    MOCK_BRANCH_EXISTS="$DEFAULT_BRANCH_EXISTS"
     MOCK_EXIT_CODE=0
 }
 
@@ -37,11 +43,29 @@ function git() {
             fi
             return 0
             ;;
+        "diff-index")
+            if [ "$MOCK_HAS_CHANGES" = true ]; then
+                return 1
+            else
+                return 0
+            fi
+            ;;
+        "show-ref")
+            if [ "$2" == "--verify" ] && [ "$3" == "--quiet" ]; then
+                if [ "$MOCK_BRANCH_EXISTS" = true ]; then
+                    return 0
+                else
+                    return 1
+                fi
+            fi
+            ;;
         "checkout")
             if [ "$2" == "-b" ]; then
-                echo "Switched to a new branch '$3'"
+                echo "Created and switched to branch: $3"
+                MOCK_BRANCH="$3"
             else
-                echo "Switched to branch '$2'"
+                echo "Switched to branch: $2"
+                MOCK_BRANCH="$2"
             fi
             return 0
             ;;
@@ -51,7 +75,7 @@ function git() {
                     echo "Popped stash"
                     ;;
                 "save")
-                    echo "Saved working directory and index state"
+                    echo "Saved working directory and index state: $3"
                     ;;
                 *)
                     echo "Changes stashed"
@@ -69,43 +93,8 @@ function git() {
             echo "Current branch $MOCK_BRANCH is up to date."
             return 0
             ;;
-        "branch")
-            if [ "$2" == "--list" ]; then
-                echo "$MOCK_BRANCHES"
-            elif [ "$2" == "-D" ]; then
-                echo "Deleted branch $3"
-            else
-                echo "$MOCK_BRANCHES"
-            fi
-            return 0
-            ;;
-        "fetch")
-            echo "Fetching origin"
-            return 0
-            ;;
-        "remote")
-            if [ "$2" == "get-url" ]; then
-                echo "git@github.com:test-org/test-repo.git"
-            elif [ "$2" == "update" ]; then
-                echo "Remote updated"
-            fi
-            return 0
-            ;;
-        "config")
-            case "$2" in
-                "--get")
-                    if [ "$3" == "branch.$MOCK_BRANCH.remote" ]; then
-                        echo "origin"
-                    elif [ "$3" == "branch.$MOCK_BRANCH.merge" ]; then
-                        echo "refs/heads/$MOCK_BRANCH"
-                    elif [ "$3" == "remote.origin.url" ]; then
-                        echo "git@github.com:test-org/test-repo.git"
-                    fi
-                    ;;
-                *)
-                    echo "config $2 $3=$4"
-                    ;;
-            esac
+        "rebase")
+            echo "Rebased current branch"
             return 0
             ;;
         *)
@@ -125,36 +114,63 @@ function tearDown() {
 }
 
 # Test cases
-function test_basic_reform() {
-    local output=$("$SCRIPT_PATH" 2>&1)
-    assert_contains "Changes stashed" "$output"
-    assert_contains "Successfully rebased" "$output"
+function test_help_option() {
+    local output
+    output=$("$SCRIPT_PATH" --help 2>&1)
+    assert_contains "Usage: git reform [options] [target-branch]" "$output"
+    assert_contains "-f, --force" "$output"
+    assert_contains "-h, --help" "$output"
 }
 
-function test_existing_target_branch() {
-    local output=$("$SCRIPT_PATH" "target-branch" 2>&1)
-    assert_contains "Changes stashed" "$output"
-    assert_contains "Switched to branch 'target-branch'" "$output"
-    assert_contains "Successfully rebased" "$output"
+function test_unknown_option() {
+    local output
+    output=$("$SCRIPT_PATH" --invalid 2>&1)
+    assert_contains "Error: Unknown option: --invalid" "$output"
+}
+
+function test_no_changes() {
+    MOCK_HAS_CHANGES=false
+    local output
+    output=$("$SCRIPT_PATH" --force 2>&1)
+    assert_contains "No local changes to preserve" "$output"
+    assert_contains "Reform complete!" "$output"
+}
+
+function test_with_changes() {
+    MOCK_HAS_CHANGES=true
+    local output
+    output=$("$SCRIPT_PATH" --force 2>&1)
+    assert_contains "Found changes to preserve" "$output"
+    assert_contains "Stashing changes" "$output"
 }
 
 function test_new_target_branch() {
-    local output=$("$SCRIPT_PATH" "new-feature" 2>&1)
-    assert_contains "Changes stashed" "$output"
-    assert_contains "Switched to a new branch 'new-feature'" "$output"
-    assert_contains "Successfully rebased" "$output"
+    MOCK_BRANCH_EXISTS=false
+    local output
+    output=$("$SCRIPT_PATH" --force new-branch 2>&1)
+    assert_contains "Will create new branch: new-branch" "$output"
+    assert_contains "Creating new branch: new-branch" "$output"
 }
 
-function test_develop_branch() {
+function test_existing_target_branch() {
+    MOCK_BRANCH_EXISTS=true
+    local output
+    output=$("$SCRIPT_PATH" --force existing-branch 2>&1)
+    assert_contains "Target branch exists" "$output"
+    assert_contains "Switching to existing branch: existing-branch" "$output"
+}
+
+function test_develop_branch_behavior() {
     MOCK_BRANCH="develop"
-    local output=$("$SCRIPT_PATH" 2>&1)
-    assert_contains "Changes stashed" "$output"
-    assert_contains "Successfully rebased" "$output"
+    local output
+    output=$("$SCRIPT_PATH" --force 2>&1)
+    assert_contains "Updating develop branch" "$output"
+    assert_contains "Reform complete!" "$output"
 }
 
-function test_invalid_branch_name() {
-    MOCK_EXIT_CODE=1
-    local output=$("$SCRIPT_PATH" "invalid/branch?name" 2>&1)
-    assert_contains "Error: Invalid branch name" "$output"
-    [ "$?" -eq 1 ] && assert_success
+function test_force_flag() {
+    MOCK_HAS_CHANGES=true
+    local output
+    output=$("$SCRIPT_PATH" --force 2>&1)
+    assert_contains "Reform complete!" "$output"
 }
