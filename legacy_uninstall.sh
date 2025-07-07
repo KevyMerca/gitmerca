@@ -16,8 +16,16 @@ print_info() { echo -e "${BLUE}INFO:${NC} $1"; }
 print_success() { echo -e "${GREEN}SUCCESS:${NC} $1"; }
 print_error() { echo -e "${RED}ERROR:${NC} $1" >&2; }
 
-print_info "Legacy uninstaller for Gitmerca..."
-print_info "This script will remove both old and new installations."
+# Get version from package.json
+if command -v node >/dev/null 2>&1; then
+    VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
+else
+    VERSION=$(grep -m 1 '"version":' "package.json" | sed 's/[^0-9.]//g')
+fi
+VERSION=${VERSION:-"unknown"}
+
+print_info "Legacy uninstaller for Gitmerca v${VERSION}..."
+print_info "This script will remove both old (v1) and new (v2) installations."
 
 # Remove old gitmerca directory
 if [ -d "$OLD_TARGET_DIR" ]; then

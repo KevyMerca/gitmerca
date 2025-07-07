@@ -1,0 +1,17 @@
+{
+  "name": "gitmerca",
+  "version": "2.0.0",
+  "description": "Custom git commands for mercateam contributors",
+  "author": "Mercateam",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mercateam/gitmerca"
+  },
+  "scripts": {
+    "install": "./install.sh",
+    "uninstall": "./uninstall.sh",
+    "legacy-uninstall": "./legacy_uninstall.sh",
+    "test": "./run_tests.sh"
+  }
+}

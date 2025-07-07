@@ -1,6 +1,6 @@
 # Gitmerca 🛠️
 
-Enhance your Git workflow with Gitmerca - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
+Enhance your Git workflow with Gitmerca (v2.0.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
 
 ## 🚀 Quick Start
 
@@ -179,6 +179,24 @@ To add new features or modify existing ones:
 4. Use provided test helpers and mock functions
 5. Run the test suite to verify changes
 6. Update documentation as needed
+7. Update version in package.json following semver
+
+### Version Management
+
+Gitmerca follows semantic versioning:
+- Major version changes (e.g., v2.0.0) indicate breaking changes
+- Minor version changes (e.g., v2.1.0) indicate new features
+- Patch version changes (e.g., v2.0.1) indicate bug fixes
+
+Current major versions:
+- v1.x.x: Original version using ~/my-git-custom-commands
+- v2.x.x: Current version using ~/gitmerca with improved installation
+
+The version number is available:
+- In package.json
+- When running any gitmerca command with --version
+- During installation/uninstallation
+- In the shared utils/version.sh script
 
 ### Installation Scripts
 

@@ -17,6 +17,16 @@ print_info() { echo -e "${BLUE}INFO:${NC} $1"; }
 print_success() { echo -e "${GREEN}SUCCESS:${NC} $1"; }
 print_error() { echo -e "${RED}ERROR:${NC} $1" >&2; }
 
+# Get version from package.json
+if command -v node >/dev/null 2>&1; then
+    VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
+else
+    VERSION=$(grep -m 1 '"version":' "package.json" | sed 's/[^0-9.]//g')
+fi
+VERSION=${VERSION:-"unknown"}
+
+print_info "Installing Gitmerca v${VERSION}..."
+
 # Check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1

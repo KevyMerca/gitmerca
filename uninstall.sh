@@ -15,7 +15,15 @@ print_info() { echo -e "${BLUE}INFO:${NC} $1"; }
 print_success() { echo -e "${GREEN}SUCCESS:${NC} $1"; }
 print_error() { echo -e "${RED}ERROR:${NC} $1" >&2; }
 
-print_info "Uninstalling Gitmerca..."
+# Get version from package.json
+if command -v node >/dev/null 2>&1; then
+    VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
+else
+    VERSION=$(grep -m 1 '"version":' "package.json" | sed 's/[^0-9.]//g')
+fi
+VERSION=${VERSION:-"unknown"}
+
+print_info "Uninstalling Gitmerca v${VERSION}..."
 
 # Remove gitmerca directory
 if [ -d "$TARGET_DIR" ]; then
