@@ -9,6 +9,7 @@ NC='\033[0m' # No Color
 # Define variables
 TARGET_DIR="$HOME/gitmerca"
 ZSHRC="$HOME/.zshrc"
+BACKUP_SUFFIX=".gitmerca.backup.$(date +%Y%m%d_%H%M%S)"
 
 # Print with color
 print_info() { echo -e "${BLUE}INFO:${NC} $1"; }
@@ -41,39 +42,46 @@ fi
 if [ -f "$ZSHRC" ]; then
     print_info "Cleaning up .zshrc..."
     
+    # Backup original .zshrc
+    cp "$ZSHRC" "$ZSHRC$BACKUP_SUFFIX" || {
+        print_error "Failed to create .zshrc backup"
+        exit 1
+    }
+    print_info "Created backup: $ZSHRC$BACKUP_SUFFIX"
+    
     # Create a temporary file
     TEMP_RC=$(mktemp) || {
         print_error "Failed to create temporary file"
         exit 1
     }
     
-    # Filter out Gitmerca lines
-    awk '!/^# Gitmerca:/ && !/'$(echo "$TARGET_DIR" | sed 's/\//\\\//g')'/' "$ZSHRC" > "$TEMP_RC"
+    # Remove Gitmerca comments and PATH entries
+    awk '!/^# Gitmerca:/ && !/'$(echo "$TARGET_DIR" | sed 's/\//\\\//g')'/' "$ZSHRC" > "$TEMP_RC" || {
+        print_error "Failed to update .zshrc"
+        rm -f "$TEMP_RC"
+        exit 1
+    }
     
     # Remove any resulting double blank lines
-    awk 'NR==1{print} NR>1{if(!(/^[[:space:]]*$/ && prev~/^[[:space:]]*$/)){print}} {prev=$0}' "$TEMP_RC" > "$TEMP_RC.clean"
-    
-    # Backup original .zshrc
-    cp "$ZSHRC" "$ZSHRC.gitmerca.backup" || {
-        print_error "Failed to create .zshrc backup"
-        rm "$TEMP_RC" "$TEMP_RC.clean"
+    awk 'NR==1{print} NR>1{if(!(/^[[:space:]]*$/ && prev~/^[[:space:]]*$/)){print}} {prev=$0}' "$TEMP_RC" > "$TEMP_RC.clean" || {
+        print_error "Failed to clean up blank lines"
+        rm -f "$TEMP_RC" "$TEMP_RC.clean"
         exit 1
     }
     
     # Replace .zshrc with cleaned version
     mv "$TEMP_RC.clean" "$ZSHRC" || {
         print_error "Failed to update .zshrc"
-        print_info "Your original .zshrc has been preserved"
-        rm "$TEMP_RC" "$TEMP_RC.clean"
+        print_info "Your original .zshrc has been preserved as $ZSHRC$BACKUP_SUFFIX"
+        rm -f "$TEMP_RC" "$TEMP_RC.clean"
         exit 1
     }
     
-    rm "$TEMP_RC"
-    print_success "Updated .zshrc"
-    print_info "Backup saved as: $ZSHRC.gitmerca.backup"
+    rm -f "$TEMP_RC"
+    chmod 644 "$ZSHRC"
+    print_success "Cleaned up .zshrc"
 else
     print_info ".zshrc not found (no cleanup needed)"
 fi
-
-print_success "Uninstallation complete! 🧹"
-print_info "Please run 'source ~/.zshrc' to apply the changes to your current shell"
+print_success "Gitmerca has been successfully uninstalled! 👋"
+print_info "Please run 'source ~/.zshrc' or restart your terminal to apply changes."

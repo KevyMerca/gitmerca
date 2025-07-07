@@ -1,0 +1,238 @@
+#!/bin/bash
+
+# Get the installation directory
+INSTALL_DIR="$(dirname "$(dirname "$(dirname "$0")")")"
+UTILS_DIR="$INSTALL_DIR/src/utils"
+
+# Mock read function for testing
+if [ "${TESTING:-0}" = "1" ]; then
+    read() {
+        [ -n "$MOCK_USER_INPUT" ] && eval "$1='$MOCK_USER_INPUT'"
+        return 0
+    }
+fi
+
+# Source git utilities and version
+source "$UTILS_DIR/git-utils"
+source "$UTILS_DIR/version.sh"
+
+# Color codes for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Error handler function
+error_exit() {
+    echo -e "${RED}❌ Error: $1${NC}"
+    exit 1
+}
+
+# Show version information
+show_version() {
+    VERSION=$(get_version 2>/dev/null || echo "unknown")
+    echo -e "${BLUE}Gitmerca ${VERSION}${NC}"
+    echo -e "Custom git commands for mercateam contributors"
+    exit 0
+}
+
+# Show usage information
+show_usage() {
+    echo "Usage: git merca [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  update              Update gitmerca to the latest version"
+    echo "  uninstall          Remove gitmerca from your system"
+    echo "  doctor             Check installation health and dependencies"
+    echo "  list              Show all available commands"
+    echo "  config            View or edit configuration"
+    echo "  help              Show this help message"
+    echo ""
+    echo "Options:"
+    echo "  -v, --version     Show version information"
+    echo "  -h, --help        Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  git merca --version          # Show version"
+    echo "  git merca update            # Update to latest version"
+    echo "  git merca doctor            # Check installation"
+    exit 1
+}
+
+# Update gitmerca
+do_update() {
+    echo -e "${YELLOW}🔄 Checking for updates...${NC}"
+    
+    # Store current directory
+    CURRENT_DIR=$(pwd)
+    
+    # Navigate to installation directory
+    cd "$INSTALL_DIR" || error_exit "Cannot find gitmerca installation directory"
+    
+    # Fetch latest changes
+    git fetch origin || error_exit "Failed to fetch updates"
+    
+    # Get latest version
+    LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+    CURRENT_VERSION=$(get_version)
+    
+    if [ "$CURRENT_VERSION" = "$LATEST_TAG" ]; then
+        echo -e "${GREEN}✨ You're already on the latest version ($CURRENT_VERSION)${NC}"
+        cd "$CURRENT_DIR"
+        exit 0
+    fi
+    
+    echo -e "${YELLOW}📦 Updating from $CURRENT_VERSION to $LATEST_TAG...${NC}"
+    
+    # Checkout latest version
+    git checkout "$LATEST_TAG" || error_exit "Failed to checkout latest version"
+    
+    # Run installation
+    ./install.sh || error_exit "Failed to install new version"
+    
+    echo -e "${GREEN}✨ Successfully updated to $LATEST_TAG${NC}"
+    cd "$CURRENT_DIR"
+}
+
+# Function to handle user confirmation
+confirm() {
+    local message="$1"
+    local default="${2:-n}"
+    
+    echo -en "${YELLOW}$message [y/N]: ${NC}"
+    read -r response
+    
+    case "$response" in
+        [yY][eE][sS]|[yY]) return 0 ;;
+        [nN][oO]|[nN]|"") return 1 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Uninstall gitmerca
+do_uninstall() {
+    # Show current version before uninstalling
+    VERSION=$(get_version 2>/dev/null || echo "unknown")
+    echo -e "${YELLOW}🗑️  Preparing to uninstall Gitmerca ${VERSION}...${NC}"
+    
+    # Check if uninstall script exists
+    if [[ ! -f "$INSTALL_DIR/uninstall.sh" ]]; then
+        error_exit "Uninstall script not found. Try running: rm -rf $INSTALL_DIR"
+    fi
+    
+    # Confirm uninstallation
+    if ! confirm "Are you sure you want to uninstall Gitmerca?"; then
+        echo -e "${BLUE}Uninstallation cancelled${NC}"
+        exit 0
+    fi
+    
+    echo -e "${YELLOW}Uninstalling Gitmerca...${NC}"
+    
+    # Run uninstall script
+    if "$INSTALL_DIR/uninstall.sh"; then
+        echo -e "${GREEN}✨ Gitmerca has been successfully uninstalled${NC}"
+        echo -e "${BLUE}Thanks for using Gitmerca! 👋${NC}"
+        exit 0
+    else
+        error_exit "Failed to run uninstall script. Try manual removal: rm -rf $INSTALL_DIR"
+    fi
+}
+
+# Run health checks
+do_doctor() {
+    echo -e "${YELLOW}🔍 Running health checks...${NC}"
+    
+    # Check installation directory
+    if [ -d "$INSTALL_DIR" ]; then
+        echo -e "${GREEN}✓ Installation directory found${NC}"
+    else
+        echo -e "${RED}✗ Installation directory not found${NC}"
+    fi
+    
+    # Check PATH setup
+    COMMANDS_DIR="$HOME/gitmerca/src/commands"
+    if echo "$PATH" | grep -q "$COMMANDS_DIR"; then
+        echo -e "${GREEN}✓ PATH is correctly configured${NC}"
+    else
+        echo -e "${RED}✗ PATH is not properly configured${NC}"
+    fi
+    
+    # Check git
+    if command -v git >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Git is installed $(git --version)${NC}"
+    else
+        echo -e "${RED}✗ Git is not installed${NC}"
+    fi
+    
+    # Check pnpm
+    if command -v pnpm >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ pnpm is installed $(pnpm --version)${NC}"
+    else
+        echo -e "${RED}✗ pnpm is not installed${NC}"
+    fi
+    
+    echo -e "${YELLOW}📊 Available commands:${NC}"
+    ls -1 "$(dirname "$0")/git-"* | while read cmd; do
+        cmd_name=$(basename "$cmd" | sed 's/^git-//')
+        if [ "$cmd_name" != "merca" ]; then
+            echo -e "${GREEN}✓ git $cmd_name${NC}"
+        fi
+    done
+}
+
+# List available commands
+do_list() {
+    echo -e "${YELLOW}📋 Available commands:${NC}"
+    echo ""
+    echo -e "${BLUE}Core Commands:${NC}"
+    echo "  cleanup    Remove all local branches except develop"
+    echo "  reform     Rebase and optionally switch branches"
+    echo "  wrapup     Prepare and create a pull request"
+    echo ""
+    echo -e "${BLUE}Meta Commands:${NC}"
+    echo "  merca update     Update gitmerca to latest version"
+    echo "  merca doctor     Check installation health"
+    echo "  merca list       Show this list"
+    echo "  merca config     View/edit configuration"
+    echo ""
+    echo "Use 'git <command> --help' for more information about a command"
+}
+
+# View/edit configuration
+do_config() {
+    echo -e "${YELLOW}⚙️  Configuration:${NC}"
+    # TODO: Implement configuration management
+    echo -e "${BLUE}Coming soon!${NC}"
+}
+
+# Parse arguments
+case $1 in
+    update)
+        do_update
+        ;;
+    uninstall)
+        do_uninstall
+        ;;
+    doctor)
+        do_doctor
+        ;;
+    list)
+        do_list
+        ;;
+    config)
+        do_config
+        ;;
+    -v|--version)
+        show_version
+        ;;
+    help|-h|--help)
+        show_usage
+        ;;
+    "")
+        show_usage
+        ;;
+    *)
+        error_exit "Unknown command: $1. Use --help for usage information."
+        ;;
+esac

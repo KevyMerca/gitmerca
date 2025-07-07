@@ -1,6 +1,6 @@
 # Gitmerca 🛠️
 
-Enhance your Git workflow with Gitmerca (v2.1.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
+Enhance your Git workflow with Gitmerca (v2.2.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
 
 For a look at what's coming next, check out our [ROADMAP.md](ROADMAP.md) - we've got exciting features planned! 🗺️
 
@@ -102,6 +102,35 @@ All commands include:
 - ❌ Clear error messages
 - 🛡️ Safety confirmations
 - 📋 Detailed progress feedback
+
+## 🔧 Meta Commands
+
+### git merca
+
+Manage and maintain your Gitmerca installation.
+
+```sh
+git merca [command] [options]
+
+Commands:
+  update              Update gitmerca to the latest version
+  uninstall          Remove gitmerca from your system
+  doctor             Check installation health and dependencies
+  list              Show all available commands
+  config            View or edit configuration
+  help              Show this help message
+
+Options:
+  -v, --version     Show version information
+  -h, --help        Show this help message
+```
+
+Features:
+- 🔄 Easy updates to the latest version
+- 🔍 Health checks for installation and dependencies
+- 📋 List all available commands
+- ⚙️ Configuration management
+- 💡 Helpful documentation and usage info
 
 ## 🏗️ Project Structure
 
