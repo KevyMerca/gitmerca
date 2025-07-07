@@ -1,3 +1,59 @@
+# Gitmerca Release Notes 📝
+
+## Version 2.1.0: Enhanced CLI & User Experience 🎨
+
+This release brings significant improvements to the command-line interface and user experience across all commands.
+
+### Command Line Enhancements 🛠️
+
+All commands now feature improved CLI capabilities:
+
+#### git wrapup
+- ✨ NEW: `-b/--branch` option to create/switch branches before changes
+- 🚀 Now supports starting from develop branch when using branch option
+- 📦 Improved handling of untracked files in stash
+
+#### git reform
+- ✨ NEW: `-f/--force` option to skip confirmation prompts
+- 🎨 Enhanced branch switching feedback
+- 🛡️ Better error handling and state recovery
+
+#### git cleanup
+- ✨ NEW: `-y/--yes` option to skip confirmation
+- 📊 Added branch count and improved listing
+- 🔒 Better safety checks
+
+### Global Improvements 🌟
+
+- 🎨 Added colored output across all commands
+- 💡 Added help (`-h/--help`) option to all commands
+- 🛡️ Enhanced error handling and user feedback
+- 📝 Improved progress indicators with emojis
+- 📋 Better documentation and usage examples
+
+### Documentation Updates 📚
+
+- 📖 Updated README with detailed command options
+- 🔍 Added clear examples for each command
+- 🎯 Enhanced feature descriptions
+- 🗺️ Added cross-references to roadmap
+
+### Upgrading to 2.1.0 ⬆️
+
+To upgrade:
+
+1. Update your local copy:
+   ```sh
+   git pull origin main
+   ```
+
+2. Reinstall gitmerca:
+   ```sh
+   ./install.sh
+   ```
+
+All changes are backward compatible - existing workflows will continue to work as before, with new options available when needed.
+
 # Gitmerca v2.0.0-beta.1: First Major Revision 🧪
 
 This is the beta release of Gitmerca v2.0.0, introducing significant changes from the previous unversioned state ("v1"). We're releasing this as a beta to gather feedback from mercateam members and ensure a smooth transition to the new structure.
