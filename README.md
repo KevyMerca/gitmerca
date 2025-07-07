@@ -1,31 +1,65 @@
-# Git Custom Commands
+# Git Custom Commands 🛠️
 
-This repository provides custom Git commands to enhance your workflow. The installation script (`install.sh`) sets up the environment by performing the following steps:
+Enhance your Git workflow with these carefully crafted custom commands! This toolkit provides a set of commands to automate common Git operations and make your development process smoother.
 
-1. **Directory Setup**: Creates a directory named `my-git-custom-commands` in your home directory to store the custom Git command scripts.
-2. **File Copying**: Copies the custom Git command scripts (contained in the `commands` folder) to the newly created directory.
-3. **PATH Configuration**: Adds the directory to your `PATH` in your `.zshrc` file if it is not already included, ensuring that the custom commands can be executed from anywhere in the terminal.
-4. **Environment Reload**: Sources the `.zshrc` file to apply the changes immediately.
+## 🚀 Quick Start
 
-After running the installation script, you will be able to use the custom Git commands to streamline your Git operations.
+Run the installation script to get started:
 
-## Available Commands
+```sh
+./install.sh
+```
+
+### What the installer does:
+
+1. 📁 Creates a `my-git-custom-commands` directory in your home folder
+2. 📋 Copies the custom Git commands to this directory
+3. 🔄 Adds the directory to your `PATH` in `.zshrc`
+4. ✨ Reloads your shell environment
+
+## 🎯 Available Commands
 
 | Command       | Description                                                                 |
 |---------------|-----------------------------------------------------------------------------|
-| `git wrapup`  | Stashes changes, rebases from `develop`, runs `pnpm changeset`, commits, and pushes changes. |
-| `git reform`  | Stashes changes, rebases from `develop`, optionally checks out or creates a target branch, and pops the stash. |
+| `git wrapup`  | Automates your PR workflow: stashes changes, rebases from `develop`, runs `pnpm changeset`, commits with your message, pushes changes, and opens a PR in your browser. |
+| `git reform`  | Streamlines branch management: stashes changes, rebases from `develop`, optionally checks out or creates a target branch, and restores your changes. |
+| `git cleanup` | Keeps your local branches tidy by removing all local branches except `develop`. |
 
-Each command is designed to automate and streamline common Git workflows, reducing the need for manual intervention and minimizing the risk of errors.
+## 🏗️ Project Structure
 
-## Running Tests
+```
+├── src/
+│   ├── commands/        # Git command implementations
+│   │   ├── git-cleanup
+│   │   ├── git-reform
+│   │   └── git-wrapup
+│   └── utils/           # Shared utility functions
+│       └── git-utils    # Common Git operations
+├── tests/              # Test files
+├── lib/                # External dependencies
+└── install.sh         # Installation script
+```
 
-To ensure that everything is working correctly, you can run the provided tests using the `bashunit` testing framework. The tests are located in the `tests` directory.
+## 🧪 Running Tests
 
-To run the tests, execute the following command in your terminal:
+We use the `bashunit` testing framework to ensure reliability. Tests are located in the `tests` directory.
+
+Run all tests with:
 
 ```sh
 ./lib/bashunit ./tests
 ```
 
-This will execute all the test scripts and display the results, helping you verify that the custom Git commands are functioning as expected.
+## 💡 Tips
+
+- The commands are designed to work with a `develop` branch as the main integration branch
+- `git wrapup` automatically opens a PR in your default browser after pushing
+- All commands include safety checks to prevent unintended operations
+
+## 🤝 Contributing
+
+Feel free to open issues or submit pull requests if you have suggestions for improvements or new features!
+
+## 📝 License
+
+This project is open source and available under the MIT License.

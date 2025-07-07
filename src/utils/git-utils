@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Helper function to open pull request URL
+open_pull_request_url() {
+    local branch=$1
+    
+    # Get the remote URL
+    REMOTE_URL=$(git config --get remote.origin.url)
+
+    # Convert SSH URL to HTTPS if necessary and extract organization and repository
+    if [[ $REMOTE_URL == git@* ]]; then
+        REPO_PATH=$(echo $REMOTE_URL | sed 's/git@github.com://' | sed 's/\.git$//')
+    else
+        REPO_PATH=$(echo $REMOTE_URL | sed 's/https:\/\/github.com\///' | sed 's/\.git$//')
+    fi
+
+    # Construct and open the pull request URL
+    PR_URL="https://github.com/$REPO_PATH/pull/new/$branch"
+    if command -v open >/dev/null 2>&1; then
+        open "$PR_URL"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$PR_URL"
+    fi
+}

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Source git utilities
+source "$(dirname "$(dirname "$0")")/utils/git-utils"
+
 # Check if a commit message was provided
 if [ -z "$1" ]; then
     echo "Error: Commit message is required."
@@ -19,7 +22,7 @@ if [ "$CURRENT_BRANCH" == "develop" ] || [ "$CURRENT_BRANCH" == "main" ]; then
 fi
 
 # Stash changes
-git stash
+git stash || { echo "Error: Failed to stash changes."; exit 1; }
 
 # Pull and rebase from develop
 git pull origin develop --rebase
@@ -42,3 +45,6 @@ git commit -m "$COMMIT_MSG"
 
 # Push the current branch upstream
 git push --set-upstream origin "$CURRENT_BRANCH"
+
+# Open pull request URL
+open_pull_request_url "$CURRENT_BRANCH"

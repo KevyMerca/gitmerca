@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Delete all local branches except develop
+git branch | grep -vE "(develop|^\*)" | xargs git branch -D
