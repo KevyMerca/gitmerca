@@ -1,110 +1,116 @@
 #!/bin/bash
 
-# Mock the git command for testing
+# Source test helpers
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/test/test_helpers.sh"
+
+# Source the script to test
+SCRIPT_PATH="$COMMANDS_DIR/git-wrapup"
+
+# Default mock values
+DEFAULT_BRANCH="feature/test-branch"
+DEFAULT_CHANGESET_EXIT_CODE=0
+
+# Reset mock state
+function reset_mocks() {
+    MOCK_BRANCH="$DEFAULT_BRANCH"
+    MOCK_CHANGESET_EXIT_CODE="$DEFAULT_CHANGESET_EXIT_CODE"
+}
+
+# Mock functions
 function git() {
     case "$1" in
-        rev-parse)
-            echo "feature-branch"
-            ;;
-        stash)
-            echo "Stashed changes"
-            ;;
-        pull)
-            if [ "$3" == "--rebase" ]; then
-                echo "Rebased from develop"
+        "rev-parse")
+            if [ "$2" == "--abbrev-ref" ] && [ "$3" == "HEAD" ]; then
+                echo "$MOCK_BRANCH"
+            else
+                echo "Unknown rev-parse args"
+                return 1
             fi
             ;;
-        add)
-            echo "Staged all changes"
+        "stash")
+            if [ "$1" == "pop" ]; then
+                echo "Popped stash"
+            else
+                echo "Stashed changes"
+            fi
             ;;
-        commit)
+        "pull")
+            if [ "$2" == "origin" ] && [ "$3" == "develop" ] && [ "$4" == "--rebase" ]; then
+                echo "Pulled from develop with rebase"
+            else
+                echo "Invalid pull command"
+                return 1
+            fi
+            ;;
+        "add")
+            echo "Staged changes"
+            ;;
+        "commit")
             if [ "$2" == "-m" ]; then
-                echo "Committed with message: $3"
+                echo "Committed: $3"
+            else
+                echo "Invalid commit command"
+                return 1
             fi
             ;;
-        push)
-            if [ "$2" == "--set-upstream" ]; then
-                echo "Pushed to upstream branch: $4"
+        "push")
+            if [ "$2" == "--set-upstream" ] && [ "$3" == "origin" ]; then
+                echo "Pushed to: $4"
+            else
+                echo "Invalid push command"
+                return 1
             fi
             ;;
         *)
-            echo "Unknown git command"
+            echo "Unknown git command: $1"
+            return 1
             ;;
     esac
+    return 0
 }
 
-# Test case 1: Ensure the script exits if no commit message is provided
-function test_no_commit_message() {
-    output=$(./git-wrapup 2>&1)
-    expected="Error: Commit message is required."
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 1 passed"
-    else
-        echo "Test case 1 failed"
+function pnpm() {
+    if [ "$1" == "changeset" ]; then
+        return "$MOCK_CHANGESET_EXIT_CODE"
     fi
 }
 
-# Test case 2: Ensure the script exits if run on the develop branch
-function test_run_on_develop_branch() {
-    function git() {
-        if [ "$1" == "rev-parse" ]; then
-            echo "develop"
-        fi
-    }
-    output=$(./git-wrapup "Test commit" 2>&1)
-    expected="Error: Cannot run this command on the develop or main branch."
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 2 passed"
-    else
-        echo "Test case 2 failed"
-    fi
+# Setup and teardown
+function setUp() {
+    reset_mocks
 }
 
-# Test case 3: Ensure the script exits if run on the main branch
-function test_run_on_main_branch() {
-    function git() {
-        if [ "$1" == "rev-parse" ]; then
-            echo "main"
-        fi
-    }
-    output=$(./git-wrapup "Test commit" 2>&1)
-    expected="Error: Cannot run this command on the develop or main branch."
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 3 passed"
-    else
-        echo "Test case 3 failed"
-    fi
+function tearDown() {
+    :
 }
 
-# Test case 4: Ensure the script stashes changes, rebases, and pops the stash
-function test_stash_rebase_pop() {
-    output=$(./git-wrapup "Test commit" 2>&1)
-    expected="Stashed changes"
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 4 passed"
-    else
-        echo "Test case 4 failed"
-    fi
+# Test cases
+function test_commit_message_required() {
+    local output=$("$SCRIPT_PATH" 2>&1)
+    assert_contains "Error: Commit message is required" "$output"
 }
 
-# Test case 5: Ensure the script stages all changes and commits with the provided message
-function test_stage_commit() {
-    output=$(./git-wrapup "Test commit" 2>&1)
-    expected="Committed with message: Test commit"
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 5 passed"
-    else
-        echo "Test case 5 failed"
-    fi
+function test_protected_branches() {
+    local protected_branches=("develop" "main")
+    
+    for branch in "${protected_branches[@]}"; do
+        MOCK_BRANCH="$branch"
+        local output=$("$SCRIPT_PATH" "test commit" 2>&1)
+        assert_contains "Error: Cannot run this command on the develop or main branch" "$output"
+    done
 }
 
-# Test case 6: Ensure the script pushes the current branch upstream
-function test_push_upstream() {
-    output=$(./git-wrapup "Test commit" 2>&1)
-    expected="Pushed to upstream branch: feature-branch"
-    if [[ "$output" == *"$expected"* ]]; then
-        echo "Test case 6 passed"
-    else
-        echo "Test case 6 failed"
-    fi
+function test_normal_workflow() {
+    local output=$("$SCRIPT_PATH" "test commit message" 2>&1)
+    
+    assert_contains "Stashed changes" "$output"
+    assert_contains "Pulled from develop with rebase" "$output"
+    assert_contains "Committed: test commit message" "$output"
+    assert_contains "Pushed to: $MOCK_BRANCH" "$output"
+}
+
+function test_changeset_failure() {
+    MOCK_CHANGESET_EXIT_CODE=1
+    local output=$("$SCRIPT_PATH" "test commit" 2>&1)
+    assert_contains "Error: pnpm changeset command failed" "$output"
 }

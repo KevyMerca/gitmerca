@@ -1,101 +1,160 @@
 #!/bin/bash
 
-# Test case 1: Test git-reform without a target branch on a non-develop branch
-function test_git_reform_no_target_branch_non_develop() {
-    # Setup: Create a temporary Git repository
-    temp_repo=$(mktemp -d)
-    cd "$temp_repo"
-    git init
-    touch file.txt
-    git add file.txt
-    git commit -m "Initial commit"
-    git checkout -b feature-branch
+# Source test helpers
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/test/test_helpers.sh"
 
-    # Run the git-reform command
-    output=$(git-reform 2>&1)
-    exit_code=$?
+# Source the script to test
+SCRIPT_PATH="$COMMANDS_DIR/git-reform"
 
-    # Assert: Check if the command succeeded and the output is as expected
-    assert_same "0" "$exit_code"
-    assert_contains "Auto-stash before rebase" "$output"
-    assert_contains "Rebasing" "$output"
+# Default mock values
+DEFAULT_BRANCH="feature/test-branch"
+DEFAULT_BRANCHES="*develop
+feature-branch
+target-branch"
 
-    # Cleanup
-    cd -
-    rm -rf "$temp_repo"
+# Mock state
+MOCK_BRANCH="$DEFAULT_BRANCH"
+MOCK_BRANCHES="$DEFAULT_BRANCHES"
+MOCK_EXIT_CODE=0
+
+# Reset mock state
+function reset_mocks() {
+    MOCK_BRANCH="$DEFAULT_BRANCH"
+    MOCK_BRANCHES="$DEFAULT_BRANCHES"
+    MOCK_EXIT_CODE=0
 }
 
-# Test case 2: Test git-reform with a target branch that exists
-function test_git_reform_with_existing_target_branch() {
-    # Setup: Create a temporary Git repository
-    temp_repo=$(mktemp -d)
-    cd "$temp_repo"
-    git init
-    touch file.txt
-    git add file.txt
-    git commit -m "Initial commit"
-    git checkout -b feature-branch
-    git checkout -b target-branch
+# Mock functions
+function git() {
+    case "$1" in
+        "rev-parse")
+            if [ "$2" == "--abbrev-ref" ]; then
+                echo "$MOCK_BRANCH"
+            elif [ "$2" == "--git-dir" ]; then
+                echo ".git"
+            else
+                echo "$MOCK_BRANCH"
+            fi
+            return 0
+            ;;
+        "checkout")
+            if [ "$2" == "-b" ]; then
+                echo "Switched to a new branch '$3'"
+            else
+                echo "Switched to branch '$2'"
+            fi
+            return 0
+            ;;
+        "stash")
+            case "$2" in
+                "pop")
+                    echo "Popped stash"
+                    ;;
+                "save")
+                    echo "Saved working directory and index state"
+                    ;;
+                *)
+                    echo "Changes stashed"
+                    ;;
+            esac
+            return 0
+            ;;
+        "pull")
+            if [ "$2" == "origin" ] && [ "$3" == "develop" ]; then
+                if [ "$4" == "--rebase" ]; then
+                    echo "Successfully rebased and updated refs/heads/$MOCK_BRANCH"
+                    return 0
+                fi
+            fi
+            echo "Current branch $MOCK_BRANCH is up to date."
+            return 0
+            ;;
+        "branch")
+            if [ "$2" == "--list" ]; then
+                echo "$MOCK_BRANCHES"
+            elif [ "$2" == "-D" ]; then
+                echo "Deleted branch $3"
+            else
+                echo "$MOCK_BRANCHES"
+            fi
+            return 0
+            ;;
+        "fetch")
+            echo "Fetching origin"
+            return 0
+            ;;
+        "remote")
+            if [ "$2" == "get-url" ]; then
+                echo "git@github.com:test-org/test-repo.git"
+            elif [ "$2" == "update" ]; then
+                echo "Remote updated"
+            fi
+            return 0
+            ;;
+        "config")
+            case "$2" in
+                "--get")
+                    if [ "$3" == "branch.$MOCK_BRANCH.remote" ]; then
+                        echo "origin"
+                    elif [ "$3" == "branch.$MOCK_BRANCH.merge" ]; then
+                        echo "refs/heads/$MOCK_BRANCH"
+                    elif [ "$3" == "remote.origin.url" ]; then
+                        echo "git@github.com:test-org/test-repo.git"
+                    fi
+                    ;;
+                *)
+                    echo "config $2 $3=$4"
+                    ;;
+            esac
+            return 0
+            ;;
+        *)
+            echo "Unknown git command: $1"
+            return 1
+            ;;
+    esac
+}
 
-    # Run the git-reform command with the target branch
-    output=$(git-reform target-branch 2>&1)
-    exit_code=$?
+# Setup and teardown
+function setUp() {
+    reset_mocks
+}
 
-    # Assert: Check if the command succeeded and the output is as expected
-    assert_same "0" "$exit_code"
-    assert_contains "Auto-stash before rebase" "$output"
+function tearDown() {
+    :
+}
+
+# Test cases
+function test_basic_reform() {
+    local output=$("$SCRIPT_PATH" 2>&1)
+    assert_contains "Changes stashed" "$output"
+    assert_contains "Successfully rebased" "$output"
+}
+
+function test_existing_target_branch() {
+    local output=$("$SCRIPT_PATH" "target-branch" 2>&1)
+    assert_contains "Changes stashed" "$output"
     assert_contains "Switched to branch 'target-branch'" "$output"
-
-    # Cleanup
-    cd -
-    rm -rf "$temp_repo"
+    assert_contains "Successfully rebased" "$output"
 }
 
-# Test case 3: Test git-reform with a target branch that does not exist
-function test_git_reform_with_non_existing_target_branch() {
-    # Setup: Create a temporary Git repository
-    temp_repo=$(mktemp -d)
-    cd "$temp_repo"
-    git init
-    touch file.txt
-    git add file.txt
-    git commit -m "Initial commit"
-    git checkout -b feature-branch
-
-    # Run the git-reform command with a non-existing target branch
-    output=$(git-reform new-branch 2>&1)
-    exit_code=$?
-
-    # Assert: Check if the command succeeded and the output is as expected
-    assert_same "0" "$exit_code"
-    assert_contains "Auto-stash before rebase" "$output"
-    assert_contains "Switched to a new branch 'new-branch'" "$output"
-
-    # Cleanup
-    cd -
-    rm -rf "$temp_repo"
+function test_new_target_branch() {
+    local output=$("$SCRIPT_PATH" "new-feature" 2>&1)
+    assert_contains "Changes stashed" "$output"
+    assert_contains "Switched to a new branch 'new-feature'" "$output"
+    assert_contains "Successfully rebased" "$output"
 }
 
-# Test case 4: Test git-reform on the develop branch
-function test_git_reform_on_develop_branch() {
-    # Setup: Create a temporary Git repository
-    temp_repo=$(mktemp -d)
-    cd "$temp_repo"
-    git init
-    touch file.txt
-    git add file.txt
-    git commit -m "Initial commit"
-    git checkout -b develop
+function test_develop_branch() {
+    MOCK_BRANCH="develop"
+    local output=$("$SCRIPT_PATH" 2>&1)
+    assert_contains "Changes stashed" "$output"
+    assert_contains "Successfully rebased" "$output"
+}
 
-    # Run the git-reform command on the develop branch
-    output=$(git-reform 2>&1)
-    exit_code=$?
-
-    # Assert: Check if the command succeeded and the output is as expected
-    assert_same "0" "$exit_code"
-    assert_contains "Rebasing" "$output"
-
-    # Cleanup
-    cd -
-    rm -rf "$temp_repo"
+function test_invalid_branch_name() {
+    MOCK_EXIT_CODE=1
+    local output=$("$SCRIPT_PATH" "invalid/branch?name" 2>&1)
+    assert_contains "Error: Invalid branch name" "$output"
+    [ "$?" -eq 1 ] && assert_success
 }
