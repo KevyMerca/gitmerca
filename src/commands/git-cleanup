@@ -1,4 +1,32 @@
 #!/bin/bash
 
-# Delete all local branches except develop
-git branch | grep -vE "(develop|^\*)" | xargs git branch -D
+# Color codes for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get list of branches to delete
+BRANCHES_TO_DELETE=$(git branch | grep -vE "(develop|^\*)")
+
+if [ -z "$BRANCHES_TO_DELETE" ]; then
+    echo -e "${GREEN}✨ No branches to clean up - your workspace is already tidy!${NC}"
+    exit 0
+fi
+
+# Count branches to be deleted
+BRANCH_COUNT=$(echo "$BRANCHES_TO_DELETE" | wc -l)
+
+echo -e "${YELLOW}🧹 This will delete the following local branches:${NC}"
+echo "$BRANCHES_TO_DELETE"
+echo -e "${YELLOW}Total branches to delete: ${BRANCH_COUNT}${NC}"
+echo -e "${YELLOW}The 'develop' branch will be preserved.${NC}"
+
+read -p "Continue with cleanup? (y/N) " confirm
+
+if [[ $confirm =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}🗑️  Cleaning up branches...${NC}"
+    echo "$BRANCHES_TO_DELETE" | xargs git branch -D
+    echo -e "${GREEN}✨ Cleanup complete! Your git workspace is now tidy.${NC}"
+else
+    echo -e "${GREEN}Cleanup cancelled. No branches were deleted.${NC}"
+fi
