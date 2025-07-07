@@ -1,74 +1,103 @@
 #!/bin/bash
 
-# Color codes for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Source utilities
+source "$(dirname "${BASH_SOURCE[0]}")/../utils/core-utils.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../utils/git-utils.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../utils/version.sh"
 
-# Error handler function
-error_exit() {
-    echo -e "${RED}❌ Error: $1${NC}"
-    exit 1
+# Set Git's exec-path to help Git find man pages
+export GIT_EXEC_PATH="$(dirname "${BASH_SOURCE[0]}"):$(git --exec-path)"
+
+# Show version information
+show_version() {
+    show_command_version "Cleanup" "Remove all local branches except develop"
 }
 
 # Show usage information
 show_usage() {
-    echo "Usage: git cleanup [options]"
-    echo ""
-    echo "Options:"
-    echo "  -h, --help     Show this help message"
-    echo "  -y, --yes      Skip confirmation prompt"
-    echo ""
-    echo "Description:"
-    echo "  Removes all local branches except 'develop' to keep your workspace tidy."
-    echo "  By default, shows branches to be deleted and asks for confirmation."
-    exit 1
+    # Format help output in a way that our man page generator can parse
+    cat << EOF
+git-cleanup - Remove all local branches except 'develop'
+
+Usage: git cleanup [options]
+
+Description:
+    Removes all local branches except 'develop' to keep your workspace tidy.
+    By default, shows branches to be deleted and asks for confirmation.
+    
+Options:
+    -h, --help     Show this help message
+    -y, --yes      Skip confirmation prompt
+
+See git help cleanup for full documentation
+EOF
+    exit 0
 }
 
-# Parse arguments
-SKIP_CONFIRM=false
+# Main function
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -h|--help)
-            show_usage
-            ;;
-        -y|--yes)
-            SKIP_CONFIRM=true
-            shift
-            ;;
-        *)
-            error_exit "Unknown option: $1. Use --help for usage information."
-            ;;
-    esac
-done
-
-# Get list of branches to delete
-BRANCHES_TO_DELETE=$(git branch | grep -vE "(develop|^\*)")
-
-if [ -z "$BRANCHES_TO_DELETE" ]; then
-    echo -e "${GREEN}✨ No branches to clean up - your workspace is already tidy!${NC}"
-    exit 0
-fi
-
-# Count branches to be deleted
-BRANCH_COUNT=$(echo "$BRANCHES_TO_DELETE" | wc -l)
-
-echo -e "${YELLOW}🧹 This will delete the following local branches:${NC}"
-echo "$BRANCHES_TO_DELETE"
-echo -e "${YELLOW}Total branches to delete: ${BRANCH_COUNT}${NC}"
-echo -e "${YELLOW}The 'develop' branch will be preserved.${NC}"
-
-if [ "$SKIP_CONFIRM" = false ]; then
-    read -p "Continue with cleanup? (y/N) " confirm
-
-    if [[ ! $confirm =~ ^[Yy]$ ]]; then
-        echo -e "${GREEN}Cleanup cancelled. No branches were deleted.${NC}"
+# Main function
+main() {
+    # Parse arguments
+    local skip_confirm=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_usage
+                ;;
+            -v|--version)
+                show_version
+                ;;
+            -y|--yes)
+                skip_confirm=true
+                shift
+                ;;
+            *)
+                error_exit "Unknown option: $1. Use --help for usage information."
+                ;;
+        esac
+    done
+    
+    # Check if we're on develop branch
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$current_branch" != "develop" ]; then
+        print_warning "You are not on the develop branch"
+        if ! $skip_confirm && ! confirm "Continue anyway?"; then
+            print_info "Operation cancelled"
+            exit 0
+        fi
+    fi
+    
+    # Get list of branches to delete
+    local branches
+    readarray -t branches < <(get_branches_except_develop)
+    
+    if [ ${#branches[@]} -eq 0 ]; then
+        print_success "No branches to clean up!"
         exit 0
     fi
+    
+    # Show branches to be deleted
+    print_info "The following branches will be deleted:"
+    printf "%s\n" "${branches[@]}"
+    echo ""
+    
+    # Confirm unless -y flag was used
+    if ! $skip_confirm && ! confirm "Delete these branches?"; then
+        print_info "Operation cancelled"
+        exit 0
+    fi
+    
+    # Delete branches
+    delete_branches "${branches[@]}"
+}
+
+# Check for help flag first
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
 fi
 
-echo -e "${YELLOW}🗑️  Cleaning up branches...${NC}"
-echo "$BRANCHES_TO_DELETE" | xargs git branch -D
-echo -e "${GREEN}✨ Cleanup complete! Your git workspace is now tidy.${NC}"
+# Run the main function with all arguments
+main "$@"

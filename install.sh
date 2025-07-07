@@ -1,10 +1,8 @@
-#!/bin/zsh
+#!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source core utilities using relative path from script location
+source "$(dirname "${BASH_SOURCE[0]}")/src/utils/core-utils.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/src/utils/version.sh"
 
 # Define variables
 TARGET_DIR="$HOME/gitmerca"
@@ -13,17 +11,12 @@ COMMANDS_DIR="src/commands"
 UTILS_DIR="src/utils"
 BACKUP_DIR="$TARGET_DIR/.backup/$(date +%Y%m%d_%H%M%S)"
 
-# Print with color
-print_info() { echo -e "${BLUE}INFO:${NC} $1"; }
-print_success() { echo -e "${GREEN}SUCCESS:${NC} $1"; }
-print_error() { echo -e "${RED}ERROR:${NC} $1" >&2; }
-
 # Cleanup function for failed installation
 cleanup() {
     if [ $? -ne 0 ]; then
         print_error "Installation failed, cleaning up..."
         rm -rf "$TARGET_DIR"
-        exit 1
+        error_exit "Installation aborted"
     fi
 }
 
@@ -59,63 +52,90 @@ copy_file() {
     fi
 }
 
-# Get version from package.json
-if command -v node >/dev/null 2>&1; then
-    VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
-else
-    VERSION=$(grep -m 1 '"version":' "package.json" | sed -E 's/.*"version":[[:space:]]*"([^"]+)".*/\1/')
-fi
-VERSION=${VERSION:-"unknown"}
-
-print_info "Installing Gitmerca v${VERSION}..."
-
-# Set up error handling
-trap cleanup EXIT
-
-# Validate environment
-command -v git >/dev/null 2>&1 || {
-    print_error "Git is not installed. Please install Git first."
-    exit 1
+# Create directory structure
+create_dirs() {
+    mkdir -p "$TARGET_DIR/$COMMANDS_DIR" "$TARGET_DIR/$UTILS_DIR" || {
+        print_error "Failed to create directories"
+        return 1
+    }
 }
 
-# Create directory structure
-print_info "Creating directories..."
-mkdir -p "$TARGET_DIR/$COMMANDS_DIR" "$TARGET_DIR/$UTILS_DIR"
-
 # Copy essential files
-print_info "Copying essential files..."
-copy_file "package.json" "$TARGET_DIR/package.json"
+copy_files() {
+    # Copy package.json
+    copy_file "package.json" "$TARGET_DIR/package.json" || return 1
 
-# Copy command files
-print_info "Installing commands..."
-for file in "$COMMANDS_DIR"/*; do
-    if [ -f "$file" ]; then
-        dest="$TARGET_DIR/$COMMANDS_DIR/$(basename "$file")"
-        print_info "Installing: $(basename "$file")"
-        copy_file "$file" "$dest" "true"
-    fi
-done
+    # Copy command files
+    print_header "Installing commands..."
+    for file in "$COMMANDS_DIR"/*; do
+        if [ -f "$file" ]; then
+            dest="$TARGET_DIR/$COMMANDS_DIR/$(basename "$file")"
+            echo "Installing: $(basename "$file")"
+            # Copy and adjust utility paths
+            sed "s|source \"\\$(dirname \"\${BASH_SOURCE\\[0\\]}\")/../utils|source \"$TARGET_DIR/src/utils|g" "$file" > "$dest"
+            chmod +x "$dest" || return 1
+        fi
+    done
 
-# Copy utility files
-print_info "Installing utilities..."
-for file in "$UTILS_DIR"/*; do
-    if [ -f "$file" ]; then
-        dest="$TARGET_DIR/$UTILS_DIR/$(basename "$file")"
-        print_info "Installing: $(basename "$file")"
-        copy_file "$file" "$dest"
+    # Copy utility files
+    print_header "Installing utilities..."
+    for file in "$UTILS_DIR"/*; do
+        if [ -f "$file" ]; then
+            dest="$TARGET_DIR/$UTILS_DIR/$(basename "$file")"
+            echo "Installing: $(basename "$file")"
+            # Copy and adjust source paths
+            cp "$file" "$dest" || return 1
+        fi
+    done
+}
+
+# Install man pages
+install_man_pages() {
+    # Generate man pages
+    chmod +x scripts/generate-manpages.sh
+    if ! ./scripts/generate-manpages.sh; then
+        error_exit "Failed to generate man pages"
     fi
-done
+    
+    # Determine man page location based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS uses /usr/local/share/man
+        MAN_INSTALL_DIR="/usr/local/share/man/man1"
+    else
+        # Linux typically uses /usr/local/man
+        MAN_INSTALL_DIR="/usr/local/man/man1"
+    fi
+    
+    # Create man directory with proper permissions
+    echo "Creating man directory: $MAN_INSTALL_DIR"
+    sudo mkdir -p "$MAN_INSTALL_DIR"
+    sudo chmod 755 "$MAN_INSTALL_DIR"
+    
+    # Copy and set permissions for man pages
+    for manpage in man/man1/*.1.gz; do
+        if [ -f "$manpage" ]; then
+            echo "Installing: $(basename "$manpage")"
+            sudo cp "$manpage" "$MAN_INSTALL_DIR/"
+            sudo chmod 644 "$MAN_INSTALL_DIR/$(basename "$manpage")"
+        fi
+    done
+    
+    print_success "Man pages installed successfully"
+    return 0
+}
 
 # Update PATH in .zshrc
-if [ -f "$ZSHRC" ]; then
-    print_info "Updating PATH in .zshrc..."
+update_zshrc() {
+    if [ ! -f "$ZSHRC" ]; then
+        print_error ".zshrc not found. Please add the following to your shell configuration:"
+        echo "export PATH=\"\$PATH:$TARGET_DIR/$COMMANDS_DIR\""
+        return 1
+    fi
+
     backup_file "$ZSHRC"
     
     # Create a temporary file
-    TEMP_RC=$(mktemp) || {
-        print_error "Failed to create temporary file"
-        exit 1
-    }
+    TEMP_RC=$(mktemp) || error_exit "Failed to create temporary file"
     
     # Remove any existing Gitmerca PATH entries
     sed '/gitmerca.*commands/d' "$ZSHRC" > "$TEMP_RC"
@@ -125,33 +145,59 @@ if [ -f "$ZSHRC" ]; then
         echo ""
         echo "# Gitmerca: Custom git commands for mercateam contributors"
         echo "export PATH=\"$TARGET_DIR/$COMMANDS_DIR:\$PATH\""
-    } >> "$TEMP_RC" || {
-        print_error "Failed to update .zshrc"
-        rm -f "$TEMP_RC"
-        exit 1
-    }
+    } >> "$TEMP_RC" || error_exit "Failed to update .zshrc"
     
     # Replace original file
-    mv "$TEMP_RC" "$ZSHRC" || {
-        print_error "Failed to update .zshrc"
-        rm -f "$TEMP_RC"
-        exit 1
-    }
+    mv "$TEMP_RC" "$ZSHRC" || error_exit "Failed to update .zshrc"
     chmod 644 "$ZSHRC"
     print_success "PATH updated in .zshrc"
     
-    print_info "Applying changes..."
+    # Source the updated .zshrc
     source "$ZSHRC" || {
         print_error "Failed to source .zshrc"
-        print_info "Please run: source $ZSHRC"
+        echo "Please run: source $ZSHRC"
+        return 1
     }
-else
-    print_error ".zshrc not found. Please add the following to your shell configuration:"
-    echo "export PATH=\"\$PATH:$TARGET_DIR/$COMMANDS_DIR\""
-fi
+    
+    return 0
+}
 
-# Installation successful, remove trap
-trap - EXIT
+# Main installation function
+main() {
+    local version=$VERSION
+    print_header "Installing Gitmerca v${version}..."
 
-print_success "Installation complete! 🎉"
-print_info "Gitmerca commands are now available. Run 'git wrapup --help' to get started."
+    # Validate environment
+    command -v git >/dev/null 2>&1 || {
+        print_error "Git is not installed. Please install Git first."
+        exit 1
+    }
+
+    # Set up error handling
+    trap cleanup EXIT
+
+    # Create directory structure
+    echo "Creating directories..."
+    create_dirs || cleanup
+
+    # Copy all files
+    echo "Copying essential files..."
+    copy_files || cleanup
+
+    # Install man pages
+    echo "Installing man pages..."
+    install_man_pages || cleanup
+
+    # Update PATH in .zshrc
+    echo "Updating PATH in .zshrc..."
+    update_zshrc || cleanup
+
+    # Installation successful, remove trap
+    trap - EXIT
+
+    print_success "Installation complete! 🎉"
+    echo "Gitmerca commands are now available. Run 'git wrapup --help' to get started."
+}
+
+# Run the main installation
+main

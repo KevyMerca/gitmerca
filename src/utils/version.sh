@@ -64,6 +64,12 @@ print_version() {
     echo "Custom git commands for mercateam contributors"
 }
 
-# Export the functions
-export -f get_version
-export -f print_version
+# Function to show version info for a command
+show_command_version() {
+    local command_name="$1"
+    local description="$2"
+    version=$(get_version 2>/dev/null || echo "unknown")
+    print_header "Git ${command_name} ${version}"
+    echo -e "${description}"
+    exit 0
+}
