@@ -5,10 +5,10 @@ This document outlines the planned improvements and features for Gitmerca, organ
 ## Phase 1: Core Command Improvements 🛠️
 
 ### Command Features
-- [ ] Add `--version` flag support to all commands
+- [x] Add `--version` flag support to all commands
 - [ ] Implement `--dry-run` option for safe testing
-- [ ] Add detailed `--help` with examples for each command
-- [ ] Improve error messages with suggested fixes
+- [x] Add detailed `--help` with examples for each command
+- [x] Improve error messages with suggested fixes
 
 ### Safety Enhancements
 - [ ] Add checks for uncommitted changes
@@ -40,10 +40,10 @@ This document outlines the planned improvements and features for Gitmerca, organ
 - [ ] Create configuration file for team defaults
 
 ### Installation Experience
-- [ ] Add dependency checking (git, pnpm)
-- [ ] Improve error handling during installation
-- [ ] Add post-installation verification
-- [ ] Create upgrade command (`git merca update`)
+- [x] Add dependency checking (git, pnpm)
+- [x] Improve error handling during installation
+- [x] Add post-installation verification
+- [x] Create upgrade command (`git merca update`)
 
 ## Phase 4: Testing & Quality 🧪
 
