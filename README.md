@@ -13,9 +13,29 @@ Run the installation script to get started:
 ### What the installer does:
 
 1. 📁 Creates a `gitmerca` directory in your home folder
-2. 📋 Copies the custom Git commands to this directory
-3. 🔄 Adds the directory to your `PATH` in `.zshrc`
+2. 📋 Copies the custom Git commands and utilities
+3. 🔄 Adds the commands to your `PATH` in `.zshrc`
 4. ✨ Reloads your shell environment
+
+### Uninstalling
+
+To remove Gitmerca from your system, you have two options:
+
+```sh
+# For current installations:
+./uninstall.sh
+
+# For legacy installations (if you previously used my-git-custom-commands):
+./legacy_uninstall.sh
+```
+
+Both uninstall scripts will:
+1. 🗑️ Remove the installation directory
+2. 🧹 Clean up PATH entries in `.zshrc`
+3. 💾 Create a backup of your `.zshrc` before making changes
+4. ✨ Provide clear feedback about the removal process
+
+Note: After uninstalling, remember to run `source ~/.zshrc` to update your current shell.
 
 ## 🎯 Available Commands
 
@@ -35,17 +55,19 @@ Run the installation script to get started:
 │   │   └── git-wrapup     # Automated PR workflow
 │   └── utils/             # Shared utilities
 │       └── git-utils      # Common Git operations
-├── tests/                # Test files
+├── tests/                 # Test files
 │   ├── git-cleanup_test.sh
 │   ├── git-reform_test.sh
 │   ├── git-utils_test.sh
 │   └── git-wrapup_test.sh
-├── lib/                  # External dependencies and utilities
-│   └── test/            # Testing infrastructure
-│       ├── bashunit     # Testing framework
+├── lib/                   # External dependencies and utilities
+│   └── test/             # Testing infrastructure
+│       ├── bashunit      # Testing framework
 │       └── test_helpers.sh # Shared test utilities
-├── install.sh           # Installation script
-└── run_tests.sh        # Test runner
+├── install.sh            # Installation script
+├── uninstall.sh         # Clean removal script
+├── legacy_uninstall.sh  # Legacy installation cleanup
+└── run_tests.sh         # Test runner
 ```
 
 ## 🧪 Testing
@@ -156,7 +178,22 @@ To add new features or modify existing ones:
 3. Write tests in `tests` directory following the established pattern
 4. Use provided test helpers and mock functions
 5. Run the test suite to verify changes
-6. Update documentation to reflect mercateam-specific workflows
+6. Update documentation as needed
+
+### Installation Scripts
+
+The project includes several installation-related scripts:
+
+- `install.sh`: Main installation script with colored output and error handling
+- `uninstall.sh`: Clean removal of current installations
+- `legacy_uninstall.sh`: Handles removal of both old and new installation formats
+
+When modifying these scripts, ensure they:
+- Handle errors gracefully with helpful messages
+- Create backups before making destructive changes
+- Provide clear feedback about their progress
+- Clean up any temporary files
+- Maintain idempotency (can be run multiple times safely)
 
 ## 🤝 Contributing
 
