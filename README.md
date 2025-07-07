@@ -2,6 +2,8 @@
 
 Enhance your Git workflow with Gitmerca (v2.0.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
 
+For a look at what's coming next, check out our [ROADMAP.md](ROADMAP.md) - we've got exciting features planned! 🗺️
+
 ## 🚀 Quick Start
 
 Run the installation script to get started:
@@ -179,24 +181,8 @@ To add new features or modify existing ones:
 4. Use provided test helpers and mock functions
 5. Run the test suite to verify changes
 6. Update documentation as needed
-7. Update version in package.json following semver
 
-### Version Management
-
-Gitmerca follows semantic versioning:
-- Major version changes (e.g., v2.0.0) indicate breaking changes
-- Minor version changes (e.g., v2.1.0) indicate new features
-- Patch version changes (e.g., v2.0.1) indicate bug fixes
-
-Current major versions:
-- v1.x.x: Original version using ~/my-git-custom-commands
-- v2.x.x: Current version using ~/gitmerca with improved installation
-
-The version number is available:
-- In package.json
-- When running any gitmerca command with --version
-- During installation/uninstallation
-- In the shared utils/version.sh script
+See our [ROADMAP.md](ROADMAP.md) for planned features and improvements! 🗺️
 
 ### Installation Scripts
 
@@ -222,6 +208,19 @@ Feel free to open issues or submit pull requests in the Gitmerca repository if y
 3. Update documentation, especially regarding mercateam-specific workflows
 4. Ensure all tests pass using `./run_tests.sh`
 5. Consider the impact on the broader mercateam development process
+
+## 🗺️ Roadmap
+
+We have an exciting roadmap planned for Gitmerca! Here's a quick overview of what's coming:
+
+- 🛠️ **Core Command Improvements**: Version flags, dry-run options, and better help
+- 👩‍💻 **Developer Experience**: CI/CD, automated releases, and enhanced documentation
+- 🔧 **Shell Support**: Command completion and multi-shell compatibility
+- 🧪 **Testing & Quality**: Integration tests, benchmarks, and quality checks
+- 🚀 **Advanced Features**: Enhanced GitHub integration and workflow optimization
+- 👥 **Team Features**: Configuration sharing and workflow analytics
+
+Check out [ROADMAP.md](ROADMAP.md) for the complete plan and timeline!
 
 ## 📝 License
 
