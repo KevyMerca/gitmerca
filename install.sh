@@ -1,43 +1,84 @@
 #!/bin/bash
 
 # Source core utilities using relative path from script location
-source "$(dirname "${BASH_SOURCE[0]}")/src/utils/core-utils.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/src/utils/version.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/src/utils/core-utils.sh"
+source "$SCRIPT_DIR/src/utils/version.sh"
 
 # Define variables
 TARGET_DIR="$HOME/gitmerca"
 ZSHRC="$HOME/.zshrc"
 COMMANDS_DIR="src/commands"
 UTILS_DIR="src/utils"
-BACKUP_DIR="$TARGET_DIR/.backup/$(date +%Y%m%d_%H%M%S)"
+
+# Track if installation succeeded
+INSTALL_SUCCESS=false
 
 # Cleanup function for failed installation
 cleanup() {
-    if [ $? -ne 0 ]; then
-        print_error "Installation failed, cleaning up..."
-        rm -rf "$TARGET_DIR"
-        error_exit "Installation aborted"
+    local exit_code=$?
+    
+    # Only cleanup on failure, and only once
+    if [ "$INSTALL_SUCCESS" = false ] && [ $exit_code -ne 0 ]; then
+        print_error "Installation failed."
+        echo ""
+        echo "If you have an existing installation with permission issues, try:"
+        echo "  sudo rm -rf $TARGET_DIR"
+        echo "  ./install.sh"
     fi
+    
+    exit $exit_code
 }
 
-# Backup function
+# Check and fix existing installation permissions
+check_existing_installation() {
+    if [ -d "$TARGET_DIR" ]; then
+        # Test if we can write to the directory
+        if ! touch "$TARGET_DIR/.write_test" 2>/dev/null; then
+            print_warning "Existing installation at $TARGET_DIR has permission issues."
+            echo ""
+            echo "Options:"
+            echo "  1. Fix permissions: sudo chown -R \$USER $TARGET_DIR"
+            echo "  2. Remove and reinstall: sudo rm -rf $TARGET_DIR && ./install.sh"
+            echo ""
+            
+            if confirm "Attempt to fix permissions automatically?"; then
+                sudo chown -R "$USER" "$TARGET_DIR" || {
+                    print_error "Failed to fix permissions. Please run manually:"
+                    echo "  sudo rm -rf $TARGET_DIR"
+                    return 1
+                }
+                print_success "Permissions fixed!"
+            else
+                return 1
+            fi
+        else
+            rm -f "$TARGET_DIR/.write_test"
+        fi
+    fi
+    return 0
+}
+
+# Backup function (graceful - doesn't fail installation)
 backup_file() {
     local file="$1"
+    local backup_dir="$TARGET_DIR/.backup/$(date +%Y%m%d_%H%M%S)"
+    
     if [ -f "$file" ]; then
-        mkdir -p "$BACKUP_DIR"
-        cp "$file" "$BACKUP_DIR/" || print_error "Failed to backup $file"
+        if mkdir -p "$backup_dir" 2>/dev/null; then
+            cp "$file" "$backup_dir/" 2>/dev/null || print_warning "Could not backup $file"
+        fi
     fi
 }
 
-# Copy file with backup
+# Copy file with optional backup
 copy_file() {
     local src="$1"
     local dest="$2"
-    local make_executable="$3"
+    local make_executable="${3:-false}"
 
-    if [ -f "$dest" ]; then
-        backup_file "$dest"
-    fi
+    # Backup existing file (graceful)
+    [ -f "$dest" ] && backup_file "$dest"
     
     cp "$src" "$dest" || {
         print_error "Failed to copy $src to $dest"
@@ -65,14 +106,20 @@ copy_files() {
     # Copy package.json
     copy_file "package.json" "$TARGET_DIR/package.json" || return 1
 
+    # Copy uninstall script
+    copy_file "uninstall.sh" "$TARGET_DIR/uninstall.sh" "true" || return 1
+
     # Copy command files
     print_header "Installing commands..."
     for file in "$COMMANDS_DIR"/*; do
         if [ -f "$file" ]; then
-            dest="$TARGET_DIR/$COMMANDS_DIR/$(basename "$file")"
-            echo "Installing: $(basename "$file")"
+            local dest="$TARGET_DIR/$COMMANDS_DIR/$(basename "$file")"
+            echo "  Installing: $(basename "$file")"
             # Copy and adjust utility paths
-            sed "s|source \"\\$(dirname \"\${BASH_SOURCE\\[0\\]}\")/../utils|source \"$TARGET_DIR/src/utils|g" "$file" > "$dest"
+            sed "s|source \"\\$(dirname \"\${BASH_SOURCE\\[0\\]}\")/../utils|source \"$TARGET_DIR/src/utils|g" "$file" > "$dest" || {
+                print_error "Failed to install $(basename "$file")"
+                return 1
+            }
             chmod +x "$dest" || return 1
         fi
     done
@@ -81,123 +128,191 @@ copy_files() {
     print_header "Installing utilities..."
     for file in "$UTILS_DIR"/*; do
         if [ -f "$file" ]; then
-            dest="$TARGET_DIR/$UTILS_DIR/$(basename "$file")"
-            echo "Installing: $(basename "$file")"
-            # Copy and adjust source paths
+            local dest="$TARGET_DIR/$UTILS_DIR/$(basename "$file")"
+            echo "  Installing: $(basename "$file")"
             cp "$file" "$dest" || return 1
         fi
     done
 }
 
-# Install man pages
+# Install man pages (optional - requires sudo)
 install_man_pages() {
+    # Check if scripts exist
+    if [ ! -f "scripts/generate-manpages.sh" ]; then
+        print_warning "Man page generator not found, skipping"
+        return 0
+    fi
+
     # Generate man pages
     chmod +x scripts/generate-manpages.sh
-    if ! ./scripts/generate-manpages.sh; then
-        error_exit "Failed to generate man pages"
+    if ! ./scripts/generate-manpages.sh 2>/dev/null; then
+        print_warning "Could not generate man pages, skipping"
+        return 0
     fi
     
     # Determine man page location based on OS
+    local man_dir
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS uses /usr/local/share/man
-        MAN_INSTALL_DIR="/usr/local/share/man/man1"
+        man_dir="/usr/local/share/man/man1"
     else
-        # Linux typically uses /usr/local/man
-        MAN_INSTALL_DIR="/usr/local/man/man1"
+        man_dir="/usr/local/man/man1"
     fi
     
-    # Create man directory with proper permissions
-    echo "Creating man directory: $MAN_INSTALL_DIR"
-    sudo mkdir -p "$MAN_INSTALL_DIR"
-    sudo chmod 755 "$MAN_INSTALL_DIR"
+    # Check if we have man pages to install
+    if ! ls man/man1/*.1.gz >/dev/null 2>&1; then
+        print_warning "No man pages found, skipping"
+        return 0
+    fi
+
+    echo "Installing man pages to $man_dir (requires sudo)..."
     
-    # Copy and set permissions for man pages
-    for manpage in man/man1/*.1.gz; do
-        if [ -f "$manpage" ]; then
-            echo "Installing: $(basename "$manpage")"
-            sudo cp "$manpage" "$MAN_INSTALL_DIR/"
-            sudo chmod 644 "$MAN_INSTALL_DIR/$(basename "$manpage")"
-        fi
-    done
+    # Try to install man pages
+    if sudo mkdir -p "$man_dir" 2>/dev/null && sudo chmod 755 "$man_dir" 2>/dev/null; then
+        for manpage in man/man1/*.1.gz; do
+            if [ -f "$manpage" ]; then
+                echo "  Installing: $(basename "$manpage")"
+                sudo cp "$manpage" "$man_dir/" 2>/dev/null
+                sudo chmod 644 "$man_dir/$(basename "$manpage")" 2>/dev/null
+            fi
+        done
+        print_success "Man pages installed"
+    else
+        print_warning "Could not install man pages (sudo required). Skipping."
+        echo "  You can still use 'git <command> --help' for documentation."
+    fi
     
-    print_success "Man pages installed successfully"
     return 0
 }
 
-# Update PATH in .zshrc
-update_zshrc() {
-    if [ ! -f "$ZSHRC" ]; then
-        print_error ".zshrc not found. Please add the following to your shell configuration:"
-        echo "export PATH=\"\$PATH:$TARGET_DIR/$COMMANDS_DIR\""
-        return 1
+# Update PATH in shell config
+update_shell_config() {
+    local shell_rc="$ZSHRC"
+    
+    # Detect shell config file
+    if [ ! -f "$shell_rc" ]; then
+        if [ -f "$HOME/.bashrc" ]; then
+            shell_rc="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            shell_rc="$HOME/.bash_profile"
+        else
+            print_warning "No shell config found (.zshrc, .bashrc, .bash_profile)"
+            echo "Please add this to your shell configuration:"
+            echo "  export PATH=\"$TARGET_DIR/$COMMANDS_DIR:\$PATH\""
+            return 0
+        fi
     fi
 
-    backup_file "$ZSHRC"
+    # Check if shell config is owned by user (not root)
+    local file_owner
+    file_owner=$(stat -f '%Su' "$shell_rc" 2>/dev/null || stat -c '%U' "$shell_rc" 2>/dev/null)
+    if [ "$file_owner" = "root" ]; then
+        print_warning "$(basename "$shell_rc") is owned by root, not you!"
+        echo ""
+        echo "This can cause permission issues. Fix with:"
+        echo "  sudo chown \$USER $shell_rc"
+        echo ""
+        if confirm "Fix ownership automatically?"; then
+            sudo chown "$USER" "$shell_rc" || {
+                print_error "Failed to fix ownership. Run manually:"
+                echo "  sudo chown \$USER $shell_rc"
+                return 1
+            }
+            print_success "Ownership fixed!"
+        else
+            print_warning "Skipping shell config update"
+            echo "Add this to your shell configuration manually:"
+            echo "  export PATH=\"$TARGET_DIR/$COMMANDS_DIR:\$PATH\""
+            return 0
+        fi
+    fi
+
+    # Backup shell config
+    backup_file "$shell_rc"
     
     # Create a temporary file
-    TEMP_RC=$(mktemp) || error_exit "Failed to create temporary file"
+    local temp_rc
+    temp_rc=$(mktemp) || {
+        print_error "Failed to create temporary file"
+        return 1
+    }
     
     # Remove any existing Gitmerca PATH entries
-    sed '/gitmerca.*commands/d' "$ZSHRC" > "$TEMP_RC"
+    grep -v 'gitmerca.*commands' "$shell_rc" > "$temp_rc" 2>/dev/null || cp "$shell_rc" "$temp_rc"
+    
+    # Also remove old comment lines
+    grep -v '# Gitmerca:' "$temp_rc" > "${temp_rc}.clean" && mv "${temp_rc}.clean" "$temp_rc"
     
     # Add the new PATH entry
     {
         echo ""
         echo "# Gitmerca: Custom git commands for mercateam contributors"
         echo "export PATH=\"$TARGET_DIR/$COMMANDS_DIR:\$PATH\""
-    } >> "$TEMP_RC" || error_exit "Failed to update .zshrc"
+    } >> "$temp_rc"
     
-    # Replace original file
-    mv "$TEMP_RC" "$ZSHRC" || error_exit "Failed to update .zshrc"
-    chmod 644 "$ZSHRC"
-    print_success "PATH updated in .zshrc"
-    
-    # Source the updated .zshrc
-    source "$ZSHRC" || {
-        print_error "Failed to source .zshrc"
-        echo "Please run: source $ZSHRC"
+    # Replace original file (use cp + rm instead of mv to handle cross-device issues)
+    cp "$temp_rc" "$shell_rc" || {
+        print_error "Failed to update $shell_rc"
+        rm -f "$temp_rc"
         return 1
     }
+    rm -f "$temp_rc"
+    
+    chmod 644 "$shell_rc"
+    print_success "PATH updated in $(basename "$shell_rc")"
     
     return 0
 }
 
 # Main installation function
 main() {
-    local version=$VERSION
+    local version="${VERSION:-unknown}"
     print_header "Installing Gitmerca v${version}..."
+    echo ""
 
     # Validate environment
-    command -v git >/dev/null 2>&1 || {
+    if ! command -v git >/dev/null 2>&1; then
         print_error "Git is not installed. Please install Git first."
         exit 1
-    }
+    fi
 
     # Set up error handling
     trap cleanup EXIT
 
+    # Check existing installation
+    echo "Checking existing installation..."
+    check_existing_installation || exit 1
+
     # Create directory structure
     echo "Creating directories..."
-    create_dirs || cleanup
+    create_dirs || exit 1
 
     # Copy all files
-    echo "Copying essential files..."
-    copy_files || cleanup
+    echo "Copying files..."
+    copy_files || exit 1
 
-    # Install man pages
+    # Install man pages (optional)
     echo "Installing man pages..."
-    install_man_pages || cleanup
+    install_man_pages
 
-    # Update PATH in .zshrc
-    echo "Updating PATH in .zshrc..."
-    update_zshrc || cleanup
+    # Update PATH in shell config
+    echo "Updating shell configuration..."
+    update_shell_config || exit 1
 
-    # Installation successful, remove trap
+    # Mark installation as successful
+    INSTALL_SUCCESS=true
+
+    # Remove trap since we succeeded
     trap - EXIT
 
+    echo ""
     print_success "Installation complete! 🎉"
-    echo "Gitmerca commands are now available. Run 'git wrapup --help' to get started."
+    echo ""
+    echo "To start using gitmerca, either:"
+    echo "  • Open a new terminal, or"
+    echo "  • Run: source ~/.zshrc"
+    echo ""
+    echo "Then try: git wrapup --help"
 }
 
 # Run the main installation
-main
+main "$@"

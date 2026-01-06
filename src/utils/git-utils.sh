@@ -3,6 +3,13 @@
 # Source core utilities
 source "$(dirname "${BASH_SOURCE[0]}")/core-utils.sh"
 
+# Validate that we're in a git repository
+require_git_repo() {
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        error_exit "Not a git repository. Please run this command from within a git repository."
+    fi
+}
+
 # Convert Git remote URL to HTTPS format
 convert_to_https_url() {
     local remote_url="$1"
@@ -86,15 +93,8 @@ validate_commit_message() {
     local pattern="^(feat|fix|docs|style|refactor|test|chore)(\([a-z-]+\))?: .+"
     
     if [[ ! $msg =~ $pattern ]]; then
-        print_warning "Commit message should follow the conventional commits format:"
-        print_info "type(scope): description"
-        print_info "Examples:"
-        print_info "  feat(api): add new endpoint"
-        print_info "  fix: resolve memory leak"
-        print_info "  docs: update README"
-        if ! confirm "Continue with current message?"; then
-            exit 1
-        fi
+        print_warning "Commit message doesn't follow conventional commits format (type: description)"
+        print_info "Continuing anyway..."
     fi
 }
 
@@ -158,7 +158,7 @@ delete_branches() {
 stash_changes() {
     local message="${1:-Auto-stash}"
     print_info "💾 Stashing changes..."
-    if ! git stash save "$message"; then
+    if ! git stash push -m "$message"; then
         error_exit "Failed to stash changes"
     fi
     return 0
@@ -173,18 +173,20 @@ restore_stash() {
 }
 
 # Function to rebase current branch
+# Args: current_branch [base_branch]
 rebase_branch() {
     local current_branch="$1"
+    local base_branch="${2:-develop}"
     
-    if [ "$current_branch" = "develop" ]; then
-        print_info "📥 Updating develop branch..."
-        if ! git rebase; then
-            error_exit "Failed to rebase develop branch"
+    if [ "$current_branch" = "$base_branch" ]; then
+        print_info "📥 Updating $base_branch branch..."
+        if ! git pull --rebase; then
+            error_exit "Failed to update $base_branch branch"
         fi
     else
-        print_info "📥 Rebasing from develop..."
-        if ! git pull origin develop --rebase; then
-            error_exit "Failed to rebase from develop"
+        print_info "📥 Rebasing from $base_branch..."
+        if ! git pull origin "$base_branch" --rebase; then
+            error_exit "Failed to rebase from $base_branch"
         fi
     fi
 }

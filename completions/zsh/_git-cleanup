@@ -1,0 +1,16 @@
+#compdef git-cleanup
+
+# Zsh completion for git-cleanup
+# Install: Copy to a directory in your $fpath or source this file
+
+_git-cleanup() {
+    local -a options
+    options=(
+        '(-h --help)'{-h,--help}'[Show help message]'
+        '(-v --version)'{-v,--version}'[Show version information]'
+    )
+
+    _arguments -C $options
+}
+
+_git-cleanup "$@"

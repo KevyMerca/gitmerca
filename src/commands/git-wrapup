@@ -15,7 +15,6 @@ show_version() {
 
 # Show usage information
 show_usage() {
-    # Format help output in a way that our man page generator can parse
     cat << EOF
 git-wrapup - Prepare and create a pull request
 
@@ -33,11 +32,20 @@ Options:
     -h, --help                     Show this help message
     -v, --version                  Show version information
     -b, --branch <branch-name>     Create or switch to specified branch before changes
-                                  (allows running from develop branch)
+                                   (allows running from develop branch)
+    -n, --no-changeset             Skip running pnpm changeset
+    -d, --dry-run                  Show what would be done without making changes
 
 Examples:
     git wrapup "feat: add new feature"
     git wrapup -b feature/new-thing "feat: add new feature"
+    git wrapup -n "chore: quick fix"
+    git wrapup --dry-run "feat: test"
+
+Configuration:
+    Set defaults in ~/.gitmercaconfig:
+        skip_changeset=true
+        auto_open_pr=false
 
 See git help wrapup for full documentation
 EOF
@@ -46,9 +54,17 @@ EOF
 
 # Main function
 main() {
+    # Validate git repository
+    require_git_repo
+    
     # Parse arguments
     local target_branch=""
     local commit_msg=""
+    local skip_changeset
+    skip_changeset=$(get_config "skip_changeset" "false")
+    local auto_open_pr
+    auto_open_pr=$(get_config "auto_open_pr" "true")
+    local dry_run=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -59,14 +75,25 @@ main() {
                 show_version
                 ;;
             -b|--branch)
-                if [ -z "$2" ]; then
+                if [[ -z "${2:-}" ]]; then
                     error_exit "Branch name is required for -b|--branch option"
                 fi
                 target_branch="$2"
                 shift 2
                 ;;
+            -n|--no-changeset)
+                skip_changeset=true
+                shift
+                ;;
+            -d|--dry-run)
+                dry_run=true
+                shift
+                ;;
+            -*)
+                error_exit "Unknown option: $1. Use --help for usage information."
+                ;;
             *)
-                if [ -z "$commit_msg" ]; then
+                if [[ -z "$commit_msg" ]]; then
                     commit_msg="$1"
                 else
                     error_exit "Unexpected argument: $1"
@@ -77,22 +104,110 @@ main() {
     done
     
     # Validate commit message
-    if [ -z "$commit_msg" ]; then
+    if [[ -z "$commit_msg" ]]; then
         error_exit "Commit message is required"
     fi
-    validate_commit_message "$commit_msg"
     
     # Get current branch
     local current_branch
     current_branch=$(git rev-parse --abbrev-ref HEAD)
+    
+    if [[ "$dry_run" = true ]]; then
+        print_header "🔍 Dry-run mode - no changes will be made"
+        echo ""
+    fi
+    
     print_info "🔄 Current branch: ${current_branch}"
     
+    # Determine final branch
+    local final_branch="$current_branch"
+    if [[ -n "$target_branch" ]]; then
+        final_branch="$target_branch"
+    elif [[ "$current_branch" = "develop" ]] || [[ "$current_branch" = "main" ]]; then
+        error_exit "Cannot commit directly to $current_branch branch. Use -b option to specify a feature branch"
+    fi
+    
+    # Validate commit message format
+    validate_commit_message "$commit_msg"
+    
+    # Check if branch switch needed
+    local need_branch_switch=false
+    local branch_exists_flag=false
+    if [[ -n "$target_branch" ]]; then
+        need_branch_switch=true
+        if branch_exists "$target_branch"; then
+            branch_exists_flag=true
+        fi
+    fi
+    
+    # Check for changes to commit
+    local has_changes=false
+    if [[ -n "$(git status --porcelain)" ]]; then
+        has_changes=true
+    fi
+    
+    # Check if pnpm is available
+    local has_pnpm=false
+    if command -v pnpm >/dev/null 2>&1; then
+        has_pnpm=true
+    fi
+
+    if [[ "$dry_run" = true ]]; then
+        echo ""
+        print_header "Actions that would be performed:"
+        
+        if [[ "$need_branch_switch" = true ]]; then
+            if [[ "$branch_exists_flag" = true ]]; then
+                print_dry_run "Switch to existing branch: $target_branch"
+            else
+                print_dry_run "Create and switch to new branch: $target_branch"
+            fi
+        fi
+        
+        if [[ "$skip_changeset" != "true" ]]; then
+            if [[ "$has_pnpm" = true ]]; then
+                print_dry_run "Run pnpm changeset"
+            else
+                print_dry_run "Skip changeset (pnpm not installed)"
+            fi
+        else
+            print_dry_run "Skip changeset (--no-changeset)"
+        fi
+        
+        if [[ "$has_changes" = true ]]; then
+            print_dry_run "Stage all changes (git add .)"
+        fi
+        
+        print_dry_run "Commit with message: \"$commit_msg\""
+        print_dry_run "Push to origin/$final_branch"
+        
+        if [[ "$auto_open_pr" = "true" ]]; then
+            print_dry_run "Open pull request URL in browser"
+        fi
+        
+        echo ""
+        print_success "Dry-run complete. Run without --dry-run to execute."
+        return 0
+    fi
+    
     # Handle branch switching if requested
-    if [ -n "$target_branch" ]; then
+    if [[ -n "$target_branch" ]]; then
         handle_target_branch "$target_branch"
         current_branch="$target_branch"
-    elif [ "$current_branch" = "develop" ]; then
-        error_exit "Cannot commit directly to develop branch. Use -b option to specify a feature branch"
+    fi
+    
+    # Run changeset unless skipped
+    if [[ "$skip_changeset" != "true" ]]; then
+        if [[ "$has_pnpm" = true ]]; then
+            print_info "📝 Running pnpm changeset..."
+            if ! pnpm changeset; then
+                error_exit "pnpm changeset failed"
+            fi
+        else
+            print_warning "pnpm not found, skipping changeset"
+        fi
+    else
+        print_info "⏭️  Skipping changeset (--no-changeset)"
     fi
     
     # Stage and commit changes
@@ -102,8 +217,10 @@ main() {
     push_changes "$current_branch"
     
     # Open pull request URL
-    print_info "🌐 Opening pull request page..."
-    open_pull_request_url "$current_branch"
+    if [[ "$auto_open_pr" = "true" ]]; then
+        print_info "🌐 Opening pull request page..."
+        open_pull_request_url "$current_branch"
+    fi
     
     print_success "Wrapup complete! Review the pull request in your browser."
 }

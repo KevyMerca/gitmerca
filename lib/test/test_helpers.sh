@@ -7,66 +7,52 @@ UTILS_DIR="$PROJECT_ROOT/src/utils"
 TESTS_DIR="$PROJECT_ROOT/tests"
 LIB_DIR="$PROJECT_ROOT/lib"
 
-# Colors for better output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Real git binary path (to avoid mock interference)
+REAL_GIT="/usr/bin/git"
 
 # Export paths
-export PROJECT_ROOT COMMANDS_DIR UTILS_DIR TESTS_DIR LIB_DIR
+export PROJECT_ROOT COMMANDS_DIR UTILS_DIR TESTS_DIR LIB_DIR REAL_GIT
 
-# Test assertion functions
-function assert_contains() {
-    local expected="$1"
-    local actual="$2"
-    local message="${3:-Expected '$actual' to contain '$expected'}"
+# ============================================================================
+# Test Isolation Helpers
+# ============================================================================
+
+# Create an isolated test directory with a fake git repo
+# Uses full path to git to avoid mock interference
+# Usage: TEST_DIR=$(create_test_repo)
+create_test_repo() {
+    local test_dir
+    test_dir=$(mktemp -d)
     
-    if [[ "$actual" == *"$expected"* ]]; then
-        echo -e "${GREEN}✅ $message${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ $message${NC}"
-        echo -e "${RED}Expected to contain: $expected${NC}"
-        echo -e "${RED}Got: $actual${NC}"
-        return 1
-    fi
-}
-
-function assert_exact() {
-    local expected="$1"
-    local actual="$2"
-    local message="${3:-Expected exact match}"
+    # Initialize a minimal git repo using full path to avoid mocks
+    $REAL_GIT -C "$test_dir" init --quiet
+    $REAL_GIT -C "$test_dir" config user.email "test@test.com"
+    $REAL_GIT -C "$test_dir" config user.name "Test User"
     
-    if [[ "$actual" == "$expected" ]]; then
-        echo -e "${GREEN}✅ $message${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ $message${NC}"
-        echo -e "${RED}Expected: $expected${NC}"
-        echo -e "${RED}Got: $actual${NC}"
-        return 1
+    # Create an initial commit so we have a valid repo state
+    touch "$test_dir/.gitkeep"
+    $REAL_GIT -C "$test_dir" add .
+    $REAL_GIT -C "$test_dir" commit -m "Initial commit" --quiet
+    
+    # Create develop branch
+    $REAL_GIT -C "$test_dir" checkout -b develop --quiet
+    
+    echo "$test_dir"
+}
+
+# Clean up test directory
+# Usage: cleanup_test_repo "$TEST_DIR"
+cleanup_test_repo() {
+    local test_dir="$1"
+    if [[ -d "$test_dir" && "$test_dir" == /tmp/* ]]; then
+        rm -rf "$test_dir"
     fi
 }
 
-function assert_success() {
-    local message="$1"
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ $message${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ $message (Expected success, got failure)${NC}"
-        return 1
-    fi
-}
-
-function assert_failure() {
-    local message="$1"
-    if [ $? -ne 0 ]; then
-        echo -e "${GREEN}✅ $message${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ $message (Expected failure, got success)${NC}"
-        return 1
-    fi
+# Run a command in an isolated test directory
+# Usage: output=$(run_in_test_repo "$TEST_DIR" "$COMMANDS_DIR/git-reform" --help)
+run_in_test_repo() {
+    local test_dir="$1"
+    shift
+    (cd "$test_dir" && "$@" 2>&1)
 }

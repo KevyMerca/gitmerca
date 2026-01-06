@@ -1,0 +1,21 @@
+#compdef git
+
+# Add gitmerca commands to git completion
+# This adds the subcommands to 'git <TAB>' completion
+
+# Only add if the main _git completion is available
+(( $+functions[_git] )) || return
+
+# Define gitmerca commands
+local -a gitmerca_commands
+gitmerca_commands=(
+    'merca:Manage gitmerca installation'
+    'reform:Streamline branch management and rebasing'
+    'wrapup:Prepare and create a pull request'
+    'cleanup:Remove all local branches except develop'
+)
+
+# This function is called by the main _git completion
+_git_gitmerca_commands() {
+    _describe -t gitmerca-commands 'gitmerca commands' gitmerca_commands
+}

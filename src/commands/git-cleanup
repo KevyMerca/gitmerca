@@ -35,9 +35,10 @@ EOF
 }
 
 # Main function
-
-# Main function
 main() {
+    # Validate git repository
+    require_git_repo
+    
     # Parse arguments
     local skip_confirm=false
     
@@ -70,9 +71,11 @@ main() {
         fi
     fi
     
-    # Get list of branches to delete
-    local branches
-    readarray -t branches < <(get_branches_except_develop)
+    # Get list of branches to delete (compatible with bash 3.x)
+    local branches=()
+    while IFS= read -r branch; do
+        [[ -n "$branch" ]] && branches+=("$branch")
+    done < <(get_branches_except_develop)
     
     if [ ${#branches[@]} -eq 0 ]; then
         print_success "No branches to clean up!"

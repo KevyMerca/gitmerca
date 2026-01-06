@@ -1,0 +1,30 @@
+#compdef git-reform
+
+# Zsh completion for git-reform
+# Install: Copy to a directory in your $fpath or source this file
+
+_git-reform() {
+    local -a options
+    options=(
+        '(-h --help)'{-h,--help}'[Show help message]'
+        '(-v --version)'{-v,--version}'[Show version information]'
+        '(-f --from)'{-f,--from}'[Base branch to rebase from]:branch:__git_branch_names'
+        '(-d --dry-run)'{-d,--dry-run}'[Show what would be done without making changes]'
+    )
+
+    _arguments -C \
+        $options \
+        '1:target branch:__git_branch_names'
+}
+
+# Helper to get git branch names
+__git_branch_names() {
+    local -a branches
+    branches=(${${(f)"$(git branch --format='%(refname:short)' 2>/dev/null)"}})
+    
+    if (( ${#branches} )); then
+        _describe -t branches 'branches' branches
+    fi
+}
+
+_git-reform "$@"

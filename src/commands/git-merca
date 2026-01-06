@@ -155,13 +155,21 @@ do_update() {
 # Function to check installation health
 do_doctor() {
     print_info "🔍 Running health checks..."
+    echo ""
+    
     local has_errors=0
+    local has_warnings=0
+    
+    # =========================================================================
+    # Core Requirements
+    # =========================================================================
+    print_header "Core Requirements:"
     
     # Check installation directory
     if [ -d "$INSTALL_DIR" ]; then
-        print_success "Installation directory found"
+        print_success "Installation directory: $INSTALL_DIR"
     else
-        print_error "Installation directory not found"
+        print_error "Installation directory not found at $INSTALL_DIR"
         has_errors=1
     fi
     
@@ -170,33 +178,135 @@ do_doctor() {
         print_success "PATH is correctly configured"
     else
         print_error "PATH is not properly configured"
-        print_warning "Add '$INSTALL_DIR/src/commands' to your PATH"
+        print_warning "  Add '$INSTALL_DIR/src/commands' to your PATH"
         has_errors=1
     fi
     
     # Check git
     if command -v git >/dev/null 2>&1; then
-        print_success "Git is installed $(git --version)"
+        print_success "Git is installed ($(git --version | head -1))"
     else
         print_error "Git is not installed"
-        print_warning "Please install git to use gitmerca"
         has_errors=1
     fi
     
-    # Check commands
-    print_header "📊 Available commands:"
+    echo ""
+    
+    # =========================================================================
+    # Optional Dependencies
+    # =========================================================================
+    print_header "Optional Dependencies:"
+    
+    # Check pnpm (for changeset in wrapup)
+    if command -v pnpm >/dev/null 2>&1; then
+        print_success "pnpm is installed ($(pnpm --version 2>/dev/null || echo 'unknown version'))"
+    else
+        print_warning "pnpm not installed (git wrapup will skip changeset)"
+        print_info "  Install with: npm install -g pnpm"
+        has_warnings=1
+    fi
+    
+    # Check man pages
+    local man_dir
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        man_dir="/usr/local/share/man/man1"
+    else
+        man_dir="/usr/local/man/man1"
+    fi
+    
+    local man_pages_found=0
+    for cmd in wrapup reform cleanup merca; do
+        if [ -f "$man_dir/git-$cmd.1.gz" ]; then
+            ((man_pages_found++))
+        fi
+    done
+    
+    if [ $man_pages_found -eq 4 ]; then
+        print_success "Man pages installed (use 'man git-wrapup' etc.)"
+    elif [ $man_pages_found -gt 0 ]; then
+        print_warning "Some man pages missing ($man_pages_found/4 installed)"
+        print_info "  Run install.sh again with sudo access to install man pages"
+        has_warnings=1
+    else
+        print_warning "Man pages not installed (skipped during install)"
+        print_info "  Use 'git <command> --help' for documentation instead"
+        print_info "  Or run install.sh again with sudo access"
+        has_warnings=1
+    fi
+    
+    # Check uninstall script in install directory
+    if [ -f "$INSTALL_DIR/uninstall.sh" ]; then
+        print_success "Uninstall script available"
+    else
+        print_warning "Uninstall script not found in installation"
+        print_info "  Run install.sh to add it"
+        has_warnings=1
+    fi
+    
+    echo ""
+    
+    # =========================================================================
+    # Available Commands
+    # =========================================================================
+    print_header "Available Commands:"
     local cmd_count=0
+    local script_name
+    script_name=$(basename "${BASH_SOURCE[0]}" | sed 's/^git-//')
+    
     while IFS= read -r cmd; do
+        local cmd_name
         cmd_name=$(basename "$cmd" | sed 's/^git-//')
-        if [ "$cmd_name" != "$(basename "${BASH_SOURCE[0]}" | sed 's/^git-//')" ]; then
-            print_success "git $cmd_name"
+        if [ "$cmd_name" != "$script_name" ]; then
+            if [ -x "$cmd" ]; then
+                print_success "git $cmd_name"
+            else
+                print_warning "git $cmd_name (not executable)"
+                has_warnings=1
+            fi
             ((cmd_count++))
         fi
     done < <(ls -1 "$(dirname "${BASH_SOURCE[0]}")/git-"* 2>/dev/null)
     
     if [ $cmd_count -eq 0 ]; then
-        print_warning "No additional commands found"
+        print_error "No commands found"
         has_errors=1
+    fi
+    
+    echo ""
+    
+    # =========================================================================
+    # Shell Configuration
+    # =========================================================================
+    print_header "Shell Configuration:"
+    
+    local shell_configured=false
+    for rc_file in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+        if [ -f "$rc_file" ] && grep -q "gitmerca.*commands" "$rc_file" 2>/dev/null; then
+            print_success "$(basename "$rc_file") configured"
+            shell_configured=true
+        fi
+    done
+    
+    if [ "$shell_configured" = false ]; then
+        print_warning "No shell configuration found"
+        print_info "  PATH may not persist after terminal restart"
+        has_warnings=1
+    fi
+    
+    echo ""
+    
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    print_header "Summary:"
+    if [ $has_errors -eq 0 ] && [ $has_warnings -eq 0 ]; then
+        print_success "All checks passed! Gitmerca is fully configured."
+    elif [ $has_errors -eq 0 ]; then
+        print_warning "Gitmerca is working but some optional features are missing."
+        echo "  These won't affect core functionality."
+    else
+        print_error "Some required components are missing."
+        echo "  Please fix the errors above for gitmerca to work correctly."
     fi
     
     return $has_errors
@@ -207,17 +317,23 @@ do_list() {
     print_header "📋 Available commands:"
     echo ""
     print_header "Core Commands:"
-    echo "  cleanup    Remove all local branches except develop"
-    echo "  reform     Rebase and optionally switch branches"
-    echo "  wrapup     Prepare and create a pull request"
+    echo "  git cleanup [-y]                    Remove all local branches except develop"
+    echo "  git reform [-f <branch>] [target]   Rebase from branch and optionally switch"
+    echo "  git wrapup [-b <branch>] [-n] <msg> Commit, push, and open PR"
+    echo ""
+    print_header "Options:"
+    echo "  reform -f, --from <branch>   Base branch to rebase from (default: develop)"
+    echo "  wrapup -b, --branch <name>   Create/switch to branch before committing"
+    echo "  wrapup -n, --no-changeset    Skip pnpm changeset step"
+    echo "  cleanup -y, --yes            Skip confirmation prompt"
     echo ""
     print_header "Meta Commands:"
-    echo "  merca update     Update gitmerca to latest version"
-    echo "  merca doctor     Check installation health"
-    echo "  merca list       Show this list"
-    echo "  merca config     View/edit configuration"
+    echo "  git merca update     Update gitmerca to latest version"
+    echo "  git merca doctor     Check installation health and dependencies"
+    echo "  git merca list       Show this list"
+    echo "  git merca config     View/edit configuration"
     echo ""
-    echo "Use 'git <command> --help' for more information about a command"
+    echo "Use 'git <command> --help' for detailed documentation"
 }
 
 # Function to handle configuration

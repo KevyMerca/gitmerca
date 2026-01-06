@@ -1,6 +1,6 @@
 # Gitmerca 🛠️
 
-Enhance your Git workflow with Gitmerca (v2.2.0) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
+Enhance your Git workflow with Gitmerca (v2.2.1) - a set of custom Git commands specifically designed for contributors to the mercateam repository! These tools automate common operations and streamline the development process according to mercateam's workflow patterns.
 
 For a look at what's coming next, check out our [ROADMAP.md](ROADMAP.md) - we've got exciting features planned! 🗺️
 
@@ -49,35 +49,53 @@ Automates the mercateam PR workflow with a single command.
 git wrapup [options] <commit-message>
 
 Options:
-  -b, --branch <name>    Create or switch to branch before changes
-                        (allows running from develop branch)
-  -h, --help            Show help message
+  -b, --branch <name>     Create or switch to branch before changes
+                          (allows running from develop branch)
+  -n, --no-changeset      Skip running pnpm changeset
+  -v, --version           Show version information
+  -h, --help              Show help message
 ```
 
 Features:
-- 📦 Stashes all changes (including untracked files)
-- 🔄 Rebases from develop
-- 📝 Runs pnpm changeset
+- 📦 Stages all changes
+- 📝 Runs pnpm changeset (skip with `-n`)
 - 💾 Commits with your message
 - 🚀 Pushes changes and opens PR
+- 🛡️ Protects `develop` and `main` branches
+
+Examples:
+```sh
+git wrapup "feat: add new feature"
+git wrapup -b feature/new-thing "feat: add new feature"
+git wrapup -n "chore: quick fix"  # Skip changeset
+```
 
 ### git reform
 
-Streamlines branch management according to mercateam patterns.
+Streamlines branch management with flexible base branch support.
 
 ```sh
 git reform [options] [target-branch]
 
 Options:
-  -f, --force           Skip confirmation prompt
-  -h, --help           Show help message
+  -f, --from <branch>     Base branch to rebase from (default: develop)
+  -v, --version           Show version information
+  -h, --help              Show help message
 ```
 
 Features:
-- 💾 Preserves your changes
-- 🔄 Rebases from develop
+- 💾 Preserves your changes (auto-stash)
+- 🔄 Rebases from any base branch
 - 🌿 Optionally creates/switches branches
 - 📦 Restores your changes
+
+Examples:
+```sh
+git reform                        # Rebase from develop
+git reform feature/new            # Rebase and switch to feature/new
+git reform -f main                # Rebase from main instead of develop
+git reform -f main feature/new    # Rebase from main and switch to branch
+```
 
 ### git cleanup
 
@@ -87,8 +105,9 @@ Keeps your workspace tidy by removing unnecessary local branches.
 git cleanup [options]
 
 Options:
-  -y, --yes            Skip confirmation prompt
-  -h, --help          Show help message
+  -y, --yes              Skip confirmation prompt
+  -v, --version          Show version information
+  -h, --help             Show help message
 ```
 
 Features:
@@ -100,7 +119,7 @@ Features:
 All commands include:
 - 🎨 Colored output for better visibility
 - ❌ Clear error messages
-- 🛡️ Safety confirmations
+- 🛡️ Git repository validation
 - 📋 Detailed progress feedback
 
 ## 🔧 Meta Commands
@@ -114,15 +133,15 @@ git merca [command] [options]
 
 Commands:
   update              Update gitmerca to the latest version
-  uninstall          Remove gitmerca from your system
-  doctor             Check installation health and dependencies
-  list              Show all available commands
-  config            View or edit configuration
-  help              Show this help message
+  uninstall           Remove gitmerca from your system
+  doctor              Check installation health and dependencies
+  list                Show all available commands
+  config              View or edit configuration
+  help                Show this help message
 
 Options:
-  -v, --version     Show version information
-  -h, --help        Show this help message
+  -v, --version       Show version information
+  -h, --help          Show this help message
 ```
 
 Features:
@@ -137,29 +156,32 @@ Features:
 ```
 ├── src/
 │   ├── commands/           # Git command implementations
-│   │   ├── git-cleanup    # Remove unused branches
-│   │   ├── git-reform     # Branch management and rebasing
-│   │   └── git-wrapup     # Automated PR workflow
-│   └── utils/             # Shared utilities
-│       └── git-utils      # Common Git operations
-├── tests/                 # Test files
+│   │   ├── git-cleanup     # Remove unused branches
+│   │   ├── git-merca       # Meta command for management
+│   │   ├── git-reform      # Branch management and rebasing
+│   │   └── git-wrapup      # Automated PR workflow
+│   └── utils/              # Shared utilities
+│       ├── core-utils.sh   # Color output, errors, confirmations
+│       ├── git-utils.sh    # Git operations helpers
+│       └── version.sh      # Version management
+├── tests/                  # Test files
 │   ├── git-cleanup_test.sh
 │   ├── git-reform_test.sh
 │   ├── git-utils_test.sh
 │   └── git-wrapup_test.sh
-├── lib/                   # External dependencies and utilities
-│   └── test/             # Testing infrastructure
-│       ├── bashunit      # Testing framework
-│       └── test_helpers.sh # Shared test utilities
-├── install.sh            # Installation script
-├── uninstall.sh         # Clean removal script
-├── legacy_uninstall.sh  # Legacy installation cleanup
-└── run_tests.sh         # Test runner
+├── lib/                    # External dependencies and utilities
+│   └── test/               # Testing infrastructure
+│       ├── bashunit        # Testing framework
+│       └── test_helpers.sh # Test isolation utilities
+├── install.sh              # Installation script
+├── uninstall.sh            # Clean removal script
+├── legacy_uninstall.sh     # Legacy installation cleanup
+└── run_tests.sh            # Test runner
 ```
 
 ## 🧪 Testing
 
-We use a custom testing infrastructure built on top of the `bashunit` framework. The testing setup includes mock functions, assertions, and utilities to make testing Git commands easier and more reliable.
+We use the `bashunit` framework with proper test isolation. Each test creates its own temporary git repository to ensure tests don't affect your actual repos.
 
 ### Running Tests
 
@@ -169,31 +191,11 @@ To run the complete test suite:
 ./run_tests.sh
 ```
 
-You'll see output like this:
-
-```
-=== Running test suite ===
-
->>> Running example_test.sh...
-[PASS] example_test.sh
-...test details...
-
->>> Running git-reform_test.sh...
-[PASS] git-reform_test.sh
-...test details...
-
-=== Test suite complete ===
-All tests passed!
-```
-
-Note: You may occasionally see a message about "BASHUNIT_GIT_REPO: readonly variable" - this is a benign warning from bashunit's internals and can be safely ignored.
-
-To run specific test files:
+Or run specific test files:
 
 ```sh
-./tests/git-wrapup_test.sh
-./tests/git-reform_test.sh
-./tests/git-utils_test.sh
+./lib/test/bashunit tests/git-wrapup_test.sh
+./lib/test/bashunit tests/git-reform_test.sh
 ```
 
 ### Test Structure
@@ -201,60 +203,41 @@ To run specific test files:
 Each test file follows a consistent pattern:
 
 ```bash
-# Source test helpers (provides paths and utilities)
+# Source test helpers (provides paths and test repo utilities)
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/test/test_helpers.sh"
 
-# Default mock values and state
-DEFAULT_BRANCH="feature/test-branch"
-
-# Mock functions (e.g., git command mocks)
-function git() {
-    # Mock implementation
+# Test cases using bashunit assertions
+function test_help_option() {
+    local output=$("$SCRIPT_PATH" --help 2>&1)
+    assert_contains "Usage:" "$output"
 }
 
-# Setup and teardown
-function setUp() {
-    reset_mocks
-}
-
-function tearDown() {
-    # Clean up any test state
-    unset -f git
-}
-
-# Test cases
+# Tests with isolated git repos
 function test_feature() {
-    # Test implementation
-    assert_contains "Expected output" "$actual_output"
+    local test_dir=$(create_test_repo)
+    
+    local output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" 2>&1)
+    assert_contains "Expected output" "$output"
+    
+    cleanup_test_repo "$test_dir"
 }
 ```
 
 ### Testing Utilities
 
-The `test_helpers.sh` provides several useful functions:
+The `test_helpers.sh` provides:
 
-- **Path Resolution**
-  - `PROJECT_ROOT`: Root directory of the project
-  - `COMMANDS_DIR`: Location of Git commands
-  - `UTILS_DIR`: Location of utility functions
-
-- **Assertions**
-  - `assert_contains`: Check if output contains expected string
-  - `assert_exact`: Check for exact string match
-  - `assert_success`: Verify command success
-  - `assert_failure`: Verify command failure
-
-- **Output Formatting**
-  - Colored output for better readability
-  - Clear error messages
-  - Test progress indicators
+- **Path Resolution**: `PROJECT_ROOT`, `COMMANDS_DIR`, `UTILS_DIR`
+- **Test Isolation**: `create_test_repo()`, `cleanup_test_repo()`, `run_in_test_repo()`
+- **Assertions**: Use bashunit's built-in assertions (`assert_contains`, `assert_equals`, etc.)
 
 ## 💡 Tips
 
-- These commands are specifically designed for the mercateam repository workflow, which uses `develop` as the main integration branch
-- `git wrapup` is optimized for mercateam's PR process, automatically running `pnpm changeset` and opening PRs in the correct format
-- All commands include safety checks to prevent operations that would conflict with mercateam's workflow
-- The tools assume you're working with the mercateam repository structure and conventions
+- These commands are specifically designed for the mercateam repository workflow
+- `develop` is the default base branch, but you can use `-f main` to work with other branches
+- `git wrapup -n` is useful for quick fixes that don't need changesets
+- All commands validate that you're in a git repository before running
+- The tools protect `develop` and `main` branches from direct commits
 
 ## 🚧 Development
 
@@ -263,8 +246,8 @@ To add new features or modify existing ones:
 1. Create or modify command files in `src/commands`
 2. Add shared utilities to `src/utils` if needed
 3. Write tests in `tests` directory following the established pattern
-4. Use provided test helpers and mock functions
-5. Run the test suite to verify changes
+4. Run the test suite to verify changes: `./run_tests.sh`
+5. Install to test: `./install.sh`
 6. Update documentation as needed
 
 See our [ROADMAP.md](ROADMAP.md) for planned features and improvements! 🗺️
@@ -298,7 +281,7 @@ Feel free to open issues or submit pull requests in the Gitmerca repository if y
 
 We have an exciting roadmap planned for Gitmerca! Here's a quick overview of what's coming:
 
-- 🛠️ **Core Command Improvements**: Version flags, dry-run options, and better help
+- 🛠️ **Core Command Improvements**: Dry-run options and better help
 - 👩‍💻 **Developer Experience**: CI/CD, automated releases, and enhanced documentation
 - 🔧 **Shell Support**: Command completion and multi-shell compatibility
 - 🧪 **Testing & Quality**: Integration tests, benchmarks, and quality checks

@@ -15,7 +15,9 @@ show_version() {
 
 # Show usage information
 show_usage() {
-    # Format help output in a way that our man page generator can parse
+    local default_branch
+    default_branch=$(get_config "base_branch" "develop")
+    
     cat << EOF
 git-reform - Streamline branch management according to mercateam patterns
 
@@ -24,15 +26,28 @@ Usage: git reform [options] [target-branch]
 Description:
     Streamlines branch management according to mercateam patterns:
     1. Stashes your current changes
-    2. Rebases from develop
+    2. Rebases from a base branch (default: $default_branch)
     3. Optionally switches to or creates target branch
     
 Options:
-    -h, --help               Show this help message
-    -f, --force             Skip confirmation prompt
+    -h, --help                       Show this help message
+    -v, --version                    Show version information
+    -f, --from <branch>              Base branch to rebase from (default: $default_branch)
+    -d, --dry-run                    Show what would be done without making changes
 
 Arguments:
-    target-branch           Optional branch to create or switch to after rebase
+    target-branch                    Optional branch to create or switch to after rebase
+
+Examples:
+    git reform                       # Rebase current branch from $default_branch
+    git reform feature/new           # Rebase and switch to feature/new
+    git reform -f main               # Rebase from main instead of $default_branch
+    git reform -f main feature/new   # Rebase from main and switch to feature/new
+    git reform --dry-run             # Preview what would happen
+
+Configuration:
+    Set default base branch in ~/.gitmercaconfig:
+        default_base_branch=main
 
 See git help reform for full documentation
 EOF
@@ -40,27 +55,41 @@ EOF
 }
 
 # Main function
-
-# Main function
 main() {
+    # Validate git repository
+    require_git_repo
+    
     # Parse arguments
-    SKIP_CONFIRM=false
-    TARGET_BRANCH=""
+    local base_branch
+    base_branch=$(get_config "base_branch" "develop")
+    local target_branch=""
+    local dry_run=false
+    
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
                 show_usage
                 ;;
-            -f|--force)
-                SKIP_CONFIRM=true
+            -v|--version)
+                show_version
+                ;;
+            -f|--from)
+                if [[ -z "${2:-}" ]]; then
+                    error_exit "Branch name is required for -f|--from option"
+                fi
+                base_branch="$2"
+                shift 2
+                ;;
+            -d|--dry-run)
+                dry_run=true
                 shift
                 ;;
             -*)
                 error_exit "Unknown option: $1. Use --help for usage information."
                 ;;
             *)
-                if [ -z "$TARGET_BRANCH" ]; then
-                    TARGET_BRANCH="$1"
+                if [[ -z "$target_branch" ]]; then
+                    target_branch="$1"
                 else
                     error_exit "Unexpected argument: $1"
                 fi
@@ -70,38 +99,83 @@ main() {
     done
 
     # Get the current branch name
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    print_info "🔄 Current branch: ${CURRENT_BRANCH}"
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    
+    if [[ "$dry_run" = true ]]; then
+        print_header "🔍 Dry-run mode - no changes will be made"
+        echo ""
+    fi
+    
+    print_info "🔄 Current branch: ${current_branch}"
+    print_info "📍 Base branch: ${base_branch}"
 
     # Check if the target branch exists
-    BRANCH_EXISTS=false
-    if [ -n "$TARGET_BRANCH" ]; then
-        print_info "🔍 Checking target branch: ${TARGET_BRANCH}"
-        if branch_exists "$TARGET_BRANCH"; then
+    local branch_exists_flag=false
+    if [[ -n "$target_branch" ]]; then
+        print_info "🔍 Checking target branch: ${target_branch}"
+        if branch_exists "$target_branch"; then
             print_info "📍 Target branch exists"
-            BRANCH_EXISTS=true
+            branch_exists_flag=true
         else
-            print_info "✨ Will create new branch: ${TARGET_BRANCH}"
+            print_info "✨ Will create new branch: ${target_branch}"
         fi
     fi
 
-    # Stash changes
-    STASH_CREATED=false
-    if [ "$(git status --porcelain)" ]; then
-        stash_changes
-        STASH_CREATED=true
+    # Check for changes to stash
+    local has_changes=false
+    if [[ -n "$(git status --porcelain)" ]]; then
+        has_changes=true
     fi
 
-    # Handle rebase
-    rebase_branch "$CURRENT_BRANCH"
+    if [[ "$dry_run" = true ]]; then
+        echo ""
+        print_header "Actions that would be performed:"
+        
+        if [[ "$has_changes" = true ]]; then
+            print_dry_run "Stash current changes"
+        fi
+        
+        if [[ "$current_branch" = "$base_branch" ]]; then
+            print_dry_run "Pull and rebase $base_branch"
+        else
+            print_dry_run "Rebase from $base_branch"
+        fi
+        
+        if [[ -n "$target_branch" ]]; then
+            if [[ "$branch_exists_flag" = true ]]; then
+                print_dry_run "Switch to existing branch: $target_branch"
+            else
+                print_dry_run "Create and switch to new branch: $target_branch"
+            fi
+        fi
+        
+        if [[ "$has_changes" = true ]]; then
+            print_dry_run "Restore stashed changes"
+        fi
+        
+        echo ""
+        print_success "Dry-run complete. Run without --dry-run to execute."
+        return 0
+    fi
+
+    # Stash changes
+    local stash_created=false
+    if [[ "$has_changes" = true ]]; then
+        stash_changes
+        stash_created=true
+    fi
+
+    # Handle rebase with custom base branch
+    rebase_branch "$current_branch" "$base_branch"
 
     # Handle target branch
-    if [ -n "$TARGET_BRANCH" ]; then
-        handle_target_branch "$TARGET_BRANCH" "$BRANCH_EXISTS"
+    if [[ -n "$target_branch" ]]; then
+        handle_target_branch "$target_branch" "$branch_exists_flag"
     fi
 
     # Restore changes if they were stashed
-    if [ "$STASH_CREATED" = true ]; then
+    if [[ "$stash_created" = true ]]; then
         restore_stash
     fi
 

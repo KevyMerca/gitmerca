@@ -1,0 +1,47 @@
+#compdef git-merca
+
+# Zsh completion for git-merca
+# Install: Copy to a directory in your $fpath or source this file
+
+_git-merca() {
+    local -a subcommands
+    subcommands=(
+        'update:Update gitmerca to the latest version'
+        'doctor:Run health checks on the installation'
+        'list:Show available commands'
+        'config:View or edit configuration'
+        'help:Show help message'
+    )
+
+    local -a global_options
+    global_options=(
+        '(-h --help)'{-h,--help}'[Show help message]'
+        '(-v --version)'{-v,--version}'[Show version information]'
+    )
+
+    _arguments -C \
+        $global_options \
+        '1:subcommand:->subcommand' \
+        '*::arg:->args'
+
+    case "$state" in
+        subcommand)
+            _describe -t subcommands 'git-merca subcommands' subcommands
+            ;;
+        args)
+            case "$words[1]" in
+                config)
+                    local -a config_options
+                    config_options=(
+                        'show:Show current configuration'
+                        'edit:Edit configuration file'
+                        'path:Show configuration file path'
+                    )
+                    _describe -t config_options 'config subcommands' config_options
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_git-merca "$@"
