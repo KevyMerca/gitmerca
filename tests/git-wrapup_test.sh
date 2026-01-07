@@ -16,6 +16,7 @@ function test_help_option() {
     
     assert_contains "Usage: git wrapup [options] <commit-message>" "$output"
     assert_contains "-b, --branch <branch-name>" "$output"
+    assert_contains "-f, --from <branch>" "$output"
     assert_contains "-n, --no-changeset" "$output"
     assert_contains "-h, --help" "$output"
     assert_contains "-v, --version" "$output"
@@ -40,6 +41,13 @@ function test_branch_option_missing_name() {
     output=$("$SCRIPT_PATH" -b 2>&1)
     
     assert_contains "Branch name is required for -b|--branch option" "$output"
+}
+
+function test_from_option_missing_name() {
+    local output
+    output=$("$SCRIPT_PATH" -f 2>&1)
+    
+    assert_contains "Branch name is required for -f|--from option" "$output"
 }
 
 # ============================================================================
@@ -221,6 +229,52 @@ function test_create_new_branch() {
     output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -b "feature/new-branch" -n "feat: test" 2>&1) || true
     
     assert_contains "Creating new branch: feature/new-branch" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_from_option_shows_base_branch() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/test --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -f "main" -n "feat: test" --dry-run 2>&1) || true
+    
+    assert_contains "Base branch for PR: main" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_from_option_defaults_to_develop() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/test --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -n "feat: test" --dry-run 2>&1) || true
+    
+    assert_contains "Base branch for PR: develop" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_from_option_in_dry_run() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/test --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -f "staging" -n "feat: test" --dry-run 2>&1) || true
+    
+    assert_contains "Base branch for PR: staging" "$output"
+    assert_contains "Open pull request URL in browser (base: staging)" "$output"
     
     cleanup_test_repo "$test_dir"
 }

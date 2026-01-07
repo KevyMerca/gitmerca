@@ -33,12 +33,15 @@ Options:
     -v, --version                  Show version information
     -b, --branch <branch-name>     Create or switch to specified branch before changes
                                    (allows running from develop branch)
+    -f, --from <branch>            Base branch for pull request (default: develop)
     -n, --no-changeset             Skip running pnpm changeset
     -d, --dry-run                  Show what would be done without making changes
 
 Examples:
     git wrapup "feat: add new feature"
     git wrapup -b feature/new-thing "feat: add new feature"
+    git wrapup -f main "feat: add new feature"
+    git wrapup -f main -b feature/new-thing "feat: add new feature"
     git wrapup -n "chore: quick fix"
     git wrapup --dry-run "feat: test"
 
@@ -46,6 +49,7 @@ Configuration:
     Set defaults in ~/.gitmercaconfig:
         skip_changeset=true
         auto_open_pr=false
+        base_branch=develop
 
 See git help wrapup for full documentation
 EOF
@@ -60,6 +64,8 @@ main() {
     # Parse arguments
     local target_branch=""
     local commit_msg=""
+    local base_branch
+    base_branch=$(get_config "base_branch" "develop")
     local skip_changeset
     skip_changeset=$(get_config "skip_changeset" "false")
     local auto_open_pr
@@ -79,6 +85,13 @@ main() {
                     error_exit "Branch name is required for -b|--branch option"
                 fi
                 target_branch="$2"
+                shift 2
+                ;;
+            -f|--from)
+                if [[ -z "${2:-}" ]]; then
+                    error_exit "Branch name is required for -f|--from option"
+                fi
+                base_branch="$2"
                 shift 2
                 ;;
             -n|--no-changeset)
@@ -118,6 +131,7 @@ main() {
     fi
     
     print_info "🔄 Current branch: ${current_branch}"
+    print_info "📍 Base branch for PR: ${base_branch}"
     
     # Determine final branch
     local final_branch="$current_branch"
@@ -182,7 +196,7 @@ main() {
         print_dry_run "Push to origin/$final_branch"
         
         if [[ "$auto_open_pr" = "true" ]]; then
-            print_dry_run "Open pull request URL in browser"
+            print_dry_run "Open pull request URL in browser (base: $base_branch)"
         fi
         
         echo ""
@@ -218,8 +232,8 @@ main() {
     
     # Open pull request URL
     if [[ "$auto_open_pr" = "true" ]]; then
-        print_info "🌐 Opening pull request page..."
-        open_pull_request_url "$current_branch"
+        print_info "🌐 Opening pull request page (base: $base_branch)..."
+        open_pull_request_url "$current_branch" "$base_branch"
     fi
     
     print_success "Wrapup complete! Review the pull request in your browser."

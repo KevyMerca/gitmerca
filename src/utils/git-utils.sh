@@ -47,8 +47,10 @@ open_url() {
 }
 
 # Helper function to open pull request URL
+# Args: branch [base_branch]
 open_pull_request_url() {
     local branch="$1"
+    local base_branch="${2:-}"
     
     # Get the remote URL
     local remote_url
@@ -59,7 +61,14 @@ open_pull_request_url() {
     base_url=$(convert_to_https_url "$remote_url")
     
     # Construct and open the pull request URL
-    local pr_url="$base_url/pull/new/$branch"
+    local pr_url
+    if [[ -n "$base_branch" ]]; then
+        # Use compare format when base branch is specified: compare/base...head
+        pr_url="$base_url/compare/$base_branch...$branch?expand=1"
+    else
+        # Use default format: pull/new/head
+        pr_url="$base_url/pull/new/$branch"
+    fi
     
     print_info "Opening pull request URL: $pr_url"
     open_url "$pr_url"

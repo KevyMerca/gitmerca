@@ -127,6 +127,26 @@ function test_open_pr_url_https_remote() {
     assert_contains "https://github.com/test-org/test-repo/pull/new/feature-branch" "$output"
 }
 
+function test_open_pr_url_with_base_branch_ssh() {
+    MOCK_REMOTE_URL="git@github.com:test-org/test-repo.git"
+    
+    local output
+    output=$(open_pull_request_url "feature-branch" "main" 2>&1)
+    
+    assert_contains "https://github.com/test-org/test-repo/compare/main...feature-branch" "$output"
+    assert_contains "expand=1" "$output"
+}
+
+function test_open_pr_url_with_base_branch_https() {
+    MOCK_REMOTE_URL="https://github.com/test-org/test-repo.git"
+    
+    local output
+    output=$(open_pull_request_url "feature-branch" "staging" 2>&1)
+    
+    assert_contains "https://github.com/test-org/test-repo/compare/staging...feature-branch" "$output"
+    assert_contains "expand=1" "$output"
+}
+
 # ============================================================================
 # Open URL Fallback Tests
 # ============================================================================
