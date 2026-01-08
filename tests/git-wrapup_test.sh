@@ -70,7 +70,7 @@ function test_requires_git_repo() {
 # Protected Branch Tests
 # ============================================================================
 
-function test_cannot_commit_to_develop() {
+function test_cannot_commit_to_protected_branch_develop() {
     local test_dir
     test_dir=$(create_test_repo)
     
@@ -85,7 +85,7 @@ function test_cannot_commit_to_develop() {
     cleanup_test_repo "$test_dir"
 }
 
-function test_cannot_commit_to_main() {
+function test_cannot_commit_to_protected_branch_main() {
     local test_dir
     test_dir=$(mktemp -d)
     
@@ -106,17 +106,17 @@ function test_cannot_commit_to_main() {
     rm -rf "$test_dir"
 }
 
-function test_branch_option_allows_from_develop() {
+function test_branch_option_allows_from_protected_branch() {
     local test_dir
     test_dir=$(create_test_repo)
     
-    # Stay on develop, create a file to commit
+    # Stay on protected branch (develop), create a file to commit
     echo "test" > "$test_dir/test.txt"
     
     local output
     output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -b "feature/new" -n "feat: test" 2>&1) || true
     
-    # Should not error about develop, should try to create branch
+    # Should not error about protected branch, should try to create branch
     assert_contains "Creating new branch: feature/new" "$output"
     
     cleanup_test_repo "$test_dir"
@@ -248,7 +248,7 @@ function test_from_option_shows_base_branch() {
     cleanup_test_repo "$test_dir"
 }
 
-function test_from_option_defaults_to_develop() {
+function test_from_option_defaults_to_base_branch() {
     local test_dir
     test_dir=$(create_test_repo)
     

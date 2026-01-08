@@ -133,12 +133,27 @@ main() {
     print_info "🔄 Current branch: ${current_branch}"
     print_info "📍 Base branch for PR: ${base_branch}"
     
+    # Protected branches (default: develop, main)
+    # These branches cannot be committed to directly without -b option
+    local protected_branches=("develop" "main")
+    
     # Determine final branch
     local final_branch="$current_branch"
+    local is_protected=false
     if [[ -n "$target_branch" ]]; then
         final_branch="$target_branch"
-    elif [[ "$current_branch" = "develop" ]] || [[ "$current_branch" = "main" ]]; then
-        error_exit "Cannot commit directly to $current_branch branch. Use -b option to specify a feature branch"
+    else
+        # Check if current branch is protected
+        for protected_branch in "${protected_branches[@]}"; do
+            if [[ "$current_branch" = "$protected_branch" ]]; then
+                is_protected=true
+                break
+            fi
+        done
+        
+        if [[ "$is_protected" = true ]]; then
+            error_exit "Cannot commit directly to $current_branch branch. Use -b option to specify a feature branch"
+        fi
     fi
     
     # Validate commit message format
