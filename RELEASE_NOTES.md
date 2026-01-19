@@ -1,5 +1,125 @@
 # Gitmerca Release Notes 📝
 
+## Version 2.2.1: Shell Completions & Enhanced Workflow 🔧
+
+This release introduces comprehensive shell completion support and workflow improvements to make Gitmerca even more developer-friendly.
+
+### Shell Completion Support ⌨️
+
+- ✨ **NEW**: Automatic shell completion installation for Zsh, Bash, and Fish
+- 🎯 **Oh My Zsh Support**: Automatic detection and installation for Oh My Zsh users
+- 📦 **Smart Installation**: Completions are automatically installed during setup
+- 🔄 **Auto-detection**: Installer detects your shell and installs appropriate completions
+- 📚 **Comprehensive Documentation**: Complete guide in `completions/README.md`
+
+**Supported Shells:**
+- Zsh (with Oh My Zsh compatibility)
+- Bash
+- Fish
+
+**Features:**
+- Tab completion for all command options
+- Branch name autocompletion
+- Subcommand completion for `git merca`
+- Automatic reload instructions
+
+### git wrapup Enhancements 🚀
+
+- ✨ **NEW**: `-f/--from` option to specify custom base branch for pull requests
+  - Defaults to `develop` if not specified
+  - Enables creating PRs from any branch to any branch
+  - Enhanced PR URL generation with base branch support
+
+- ✨ **NEW**: `-fnb` shorthand option combining:
+  - `-f <current-branch>`: Use current branch as base
+  - `-n`: Skip changeset
+  - `-b <branch-name>`: Create/switch to feature branch
+  - Streamlines common workflow: `git wrapup -fnb feature-branch "commit message"`
+
+- 🛡️ **NEW**: Protected branch enforcement
+  - Prevents direct commits to `develop` and `main` branches
+  - Requires `-b` option to create feature branches
+  - Clear error messages with suggested fixes
+  - Prevents invalid PR creation (same branch to itself)
+
+### Installation Improvements 🛠️
+
+- 🔍 Better detection of existing installations
+- 🛡️ Improved permission handling and error messages
+- 📋 Enhanced user feedback during installation
+- 🔄 Automatic completion cache clearing instructions for Oh My Zsh users
+
+### Documentation Updates 📚
+
+- 📖 Updated README with new command options and examples
+- 🗺️ Updated ROADMAP to reflect completed shell integration features
+- 📝 Comprehensive completion installation guide
+- 🎯 Oh My Zsh-specific installation instructions
+
+### Upgrading to 2.2.1 ⬆️
+
+To upgrade:
+
+1. Update your local copy:
+   ```sh
+   git pull origin main
+   ```
+
+2. Reinstall gitmerca:
+   ```sh
+   ./install.sh
+   ```
+
+3. **For Oh My Zsh users**: Clear completion cache:
+   ```sh
+   rm ~/.zcompdump* && exec zsh
+   ```
+
+All changes are backward compatible - existing workflows will continue to work as before, with new options available when needed.
+
+---
+
+## Version 2.2.0: Git Merca Command & Management 🎛️
+
+This release introduces the `git merca` management command and improves overall system configuration.
+
+### New Command: git merca 🆕
+
+- ✨ **NEW**: `git merca` command for managing Gitmerca installation
+  - `git merca update`: Update to the latest version
+  - `git merca uninstall`: Remove Gitmerca from your system
+  - `git merca doctor`: Run health checks on installation
+  - `git merca list`: Show all available commands
+  - `git merca config`: View or edit configuration
+  - `git merca help`: Show help message
+
+### System Improvements 🔧
+
+- 🔧 Improved PATH configuration detection
+- 🛡️ Better error handling in doctor command
+- 📋 Enhanced installation verification
+
+### Documentation Updates 📚
+
+- 📖 Updated documentation with new `git merca` command
+- 🗺️ Updated ROADMAP with new features
+
+### Upgrading to 2.2.0 ⬆️
+
+To upgrade:
+
+1. Update your local copy:
+   ```sh
+   git pull origin main
+   ```
+
+2. Reinstall gitmerca:
+   ```sh
+   ./install.sh
+   ```
+
+---
+
 ## Version 2.1.0: Enhanced CLI & User Experience 🎨
 
 This release brings significant improvements to the command-line interface and user experience across all commands.
