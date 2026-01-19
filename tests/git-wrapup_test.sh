@@ -18,6 +18,7 @@ function test_help_option() {
     assert_contains "-b, --branch <branch-name>" "$output"
     assert_contains "-f, --from <branch>" "$output"
     assert_contains "-n, --no-changeset" "$output"
+    assert_contains "-fnb <branch> <message>" "$output"
     assert_contains "-h, --help" "$output"
     assert_contains "-v, --version" "$output"
 }
@@ -275,6 +276,72 @@ function test_from_option_in_dry_run() {
     
     assert_contains "Base branch for PR: staging" "$output"
     assert_contains "Open pull request URL in browser (base: staging)" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_fnb_shorthand_creates_branch() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/source --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -fnb feature/target "feat: test" 2>&1) || true
+    
+    assert_contains "Creating new branch: feature/target" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_fnb_shorthand_uses_current_branch_as_base() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/source --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -fnb feature/target "feat: test" --dry-run 2>&1) || true
+    
+    assert_contains "Base branch for PR: feature/source" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_fnb_shorthand_skips_changeset() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/source --quiet
+    echo "test" > "$test_dir/test.txt"
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -fnb feature/target "feat: test" --dry-run 2>&1) || true
+    
+    assert_contains "Skip changeset" "$output"
+    
+    cleanup_test_repo "$test_dir"
+}
+
+function test_fnb_shorthand_requires_branch_name() {
+    local output
+    output=$("$SCRIPT_PATH" -fnb 2>&1) || true
+    
+    assert_contains "Branch name is required for -fnb option" "$output"
+}
+
+function test_fnb_shorthand_requires_commit_message() {
+    local test_dir
+    test_dir=$(create_test_repo)
+    
+    git -C "$test_dir" checkout -b feature/source --quiet
+    
+    local output
+    output=$(run_in_test_repo "$test_dir" "$SCRIPT_PATH" -fnb feature/target 2>&1) || true
+    
+    assert_contains "Commit message is required for -fnb option" "$output"
     
     cleanup_test_repo "$test_dir"
 }

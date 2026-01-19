@@ -133,6 +133,14 @@ copy_files() {
             cp "$file" "$dest" || return 1
         fi
     done
+    
+    # Copy completion files
+    print_header "Installing completions..."
+    if [ -d "completions" ]; then
+        mkdir -p "$TARGET_DIR/completions" || return 1
+        cp -r completions/* "$TARGET_DIR/completions/" || return 1
+        print_success "Completions copied to installation directory"
+    fi
 }
 
 # Install man pages (optional - requires sudo)
@@ -263,6 +271,177 @@ update_shell_config() {
     return 0
 }
 
+# Install shell completions
+install_completions() {
+    print_header "Installing shell completions..."
+    
+    local completions_installed=false
+    
+    # Install Zsh completions
+    if command -v zsh >/dev/null 2>&1; then
+        local zsh_completion_dir=""
+        local oh_my_zsh_dir="$HOME/.oh-my-zsh"
+        
+        # Check for Oh My Zsh first (needs special handling)
+        if [ -d "$oh_my_zsh_dir" ]; then
+            # Oh My Zsh: use custom completions directory
+            zsh_completion_dir="$oh_my_zsh_dir/completions"
+            mkdir -p "$zsh_completion_dir" 2>/dev/null || true
+            
+            if [ -d "$zsh_completion_dir" ] && [ -w "$zsh_completion_dir" ] 2>/dev/null; then
+                for file in "$TARGET_DIR/completions/zsh"/_git-*; do
+                    if [ -f "$file" ]; then
+                        cp "$file" "$zsh_completion_dir/" 2>/dev/null && {
+                            echo "  Installed Zsh completion (Oh My Zsh): $(basename "$file")"
+                            completions_installed=true
+                        }
+                    fi
+                done
+                if [ "$completions_installed" = true ]; then
+                    echo "  Note: Run 'rm ~/.zcompdump* && exec zsh' to reload completions"
+                fi
+            fi
+        fi
+        
+        # If Oh My Zsh installation didn't work, try other methods
+        if [ "$completions_installed" != true ]; then
+            # Try to find zsh completion directory
+            if [ -d "/usr/local/share/zsh/site-functions" ] && [ -w "/usr/local/share/zsh/site-functions" ] 2>/dev/null; then
+                zsh_completion_dir="/usr/local/share/zsh/site-functions"
+            elif [ -d "$HOME/.zsh/completions" ] || mkdir -p "$HOME/.zsh/completions" 2>/dev/null; then
+                zsh_completion_dir="$HOME/.zsh/completions"
+            fi
+            
+            if [ -n "$zsh_completion_dir" ] && [ -w "$zsh_completion_dir" ] 2>/dev/null; then
+                # Copy to system/user directory
+                for file in "$TARGET_DIR/completions/zsh"/_git-*; do
+                    if [ -f "$file" ]; then
+                        cp "$file" "$zsh_completion_dir/" 2>/dev/null && {
+                            echo "  Installed Zsh completion: $(basename "$file")"
+                            completions_installed=true
+                        }
+                    fi
+                done
+            else
+                # Add to fpath in .zshrc (must be BEFORE oh-my-zsh.sh if OMZ is present)
+                if [ -f "$ZSHRC" ]; then
+                    if ! grep -q "gitmerca.*completions" "$ZSHRC" 2>/dev/null; then
+                        local temp_rc
+                        temp_rc=$(mktemp) || {
+                            print_warning "Could not create temp file for .zshrc update"
+                            return 0
+                        }
+                        
+                        local completion_block="# Gitmerca: Zsh completions
+fpath=(\"$TARGET_DIR/completions/zsh\" \$fpath)"
+                        
+                        # If Oh My Zsh is present, insert BEFORE oh-my-zsh.sh
+                        # Otherwise, add at the end
+                        if grep -q "oh-my-zsh.sh\|\. \$ZSH/oh-my-zsh.sh" "$ZSHRC" 2>/dev/null; then
+                            # Insert before Oh My Zsh initialization
+                            local inserted=false
+                            while IFS= read -r line; do
+                                if [[ "$line" =~ (source.*oh-my-zsh\.sh|\. \$ZSH/oh-my-zsh\.sh) ]] && [ "$inserted" = false ]; then
+                                    echo "$completion_block"
+                                    echo ""
+                                    inserted=true
+                                fi
+                                echo "$line"
+                            done < "$ZSHRC" > "$temp_rc" 2>/dev/null || cp "$ZSHRC" "$temp_rc"
+                        else
+                            # Add at the end
+                            cp "$ZSHRC" "$temp_rc"
+                            {
+                                echo ""
+                                echo "$completion_block"
+                            } >> "$temp_rc"
+                        fi
+                        
+                        cp "$temp_rc" "$ZSHRC" && {
+                            rm -f "$temp_rc"
+                            echo "  Added Zsh completions to $ZSHRC"
+                            if [ -d "$oh_my_zsh_dir" ]; then
+                                echo "  Note: Run 'rm ~/.zcompdump* && exec zsh' to reload completions"
+                            fi
+                            completions_installed=true
+                        } || rm -f "$temp_rc"
+                    fi
+                fi
+            fi
+        fi
+    fi
+    
+    # Install Bash completions
+    if command -v bash >/dev/null 2>&1; then
+        local bash_completion_dir="$HOME/.bash_completion.d"
+        local bashrc_file=""
+        
+        # Detect bash config file
+        if [ -f "$HOME/.bashrc" ]; then
+            bashrc_file="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            bashrc_file="$HOME/.bash_profile"
+        fi
+        
+        if [ -n "$bashrc_file" ]; then
+            # Create completion directory
+            mkdir -p "$bash_completion_dir" 2>/dev/null || true
+            
+            # Copy completion files
+            for file in "$TARGET_DIR/completions/bash"/git-*; do
+                if [ -f "$file" ]; then
+                    cp "$file" "$bash_completion_dir/" 2>/dev/null && {
+                        echo "  Installed Bash completion: $(basename "$file")"
+                        completions_installed=true
+                    }
+                fi
+            done
+            
+            # Add source line to bashrc if not present
+            if [ -n "$bashrc_file" ] && ! grep -q "bash_completion.d.*gitmerca\|gitmerca.*bash_completion" "$bashrc_file" 2>/dev/null; then
+                {
+                    echo ""
+                    echo "# Gitmerca: Bash completions"
+                    echo "if [ -d \"$bash_completion_dir\" ]; then"
+                    echo "    for file in \"$bash_completion_dir\"/git-*; do"
+                    echo "        [ -f \"\$file\" ] && source \"\$file\""
+                    echo "    done"
+                    echo "fi"
+                } >> "$bashrc_file"
+                echo "  Added Bash completions to $(basename "$bashrc_file")"
+            fi
+        fi
+    fi
+    
+    # Install Fish completions
+    if command -v fish >/dev/null 2>&1; then
+        local fish_completion_dir="$HOME/.config/fish/completions"
+        
+        mkdir -p "$fish_completion_dir" 2>/dev/null || true
+        
+        if [ -d "$fish_completion_dir" ]; then
+            for file in "$TARGET_DIR/completions/fish"/*.fish; do
+                if [ -f "$file" ]; then
+                    cp "$file" "$fish_completion_dir/" 2>/dev/null && {
+                        echo "  Installed Fish completion: $(basename "$file")"
+                        completions_installed=true
+                    }
+                fi
+            done
+        fi
+    fi
+    
+    if [ "$completions_installed" = true ]; then
+        print_success "Shell completions installed"
+        echo "  Reload your shell or open a new terminal to use completions"
+    else
+        print_warning "No shell completions installed (shells not detected or no write access)"
+        echo "  See completions/README.md for manual installation instructions"
+    fi
+    
+    return 0
+}
+
 # Main installation function
 main() {
     local version="${VERSION:-unknown}"
@@ -293,6 +472,9 @@ main() {
     # Install man pages (optional)
     echo "Installing man pages..."
     install_man_pages
+
+    # Install shell completions
+    install_completions
 
     # Update PATH in shell config
     echo "Updating shell configuration..."

@@ -1,0 +1,14 @@
+# Bash completion for git-cleanup
+# Source this file or place in ~/.bash_completion.d/
+
+_git_cleanup() {
+    local cur opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    opts="-h --help -v --version -y --yes"
+    
+    # Complete options
+    COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
+}
+
+complete -F _git_cleanup git-cleanup

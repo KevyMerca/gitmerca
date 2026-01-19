@@ -1,0 +1,33 @@
+# Bash completion for git-reform
+# Source this file or place in ~/.bash_completion.d/
+
+_git_reform() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help -v --version -f --from -d --dry-run"
+    
+    case "${prev}" in
+        -f|--from)
+            # Complete branch names
+            local branches
+            branches=$(git branch --format='%(refname:short)' 2>/dev/null)
+            COMPREPLY=($(compgen -W "${branches}" -- "${cur}"))
+            return 0
+            ;;
+    esac
+    
+    # If current word starts with -, complete options
+    if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
+        return 0
+    fi
+    
+    # Otherwise, complete with branch names (for target branch argument)
+    local branches
+    branches=$(git branch --format='%(refname:short)' 2>/dev/null)
+    COMPREPLY=($(compgen -W "${branches} ${opts}" -- "${cur}"))
+}
+
+complete -F _git_reform git-reform

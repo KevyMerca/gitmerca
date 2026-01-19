@@ -1,0 +1,37 @@
+# Bash completion for git-merca
+# Source this file or place in ~/.bash_completion.d/
+
+_git_merca() {
+    local cur prev opts subcommands
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help -v --version"
+    subcommands="update uninstall doctor list config help"
+    
+    # If previous word is a subcommand, handle subcommand-specific completion
+    case "${prev}" in
+        config)
+            local config_opts="show edit path"
+            COMPREPLY=($(compgen -W "${config_opts}" -- "${cur}"))
+            return 0
+            ;;
+    esac
+    
+    # If we're on the first argument and it's not an option, complete subcommands
+    if [[ ${COMP_CWORD} -eq 1 ]] && [[ "${cur}" != -* ]]; then
+        COMPREPLY=($(compgen -W "${subcommands} ${opts}" -- "${cur}"))
+        return 0
+    fi
+    
+    # If current word starts with -, complete options
+    if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
+        return 0
+    fi
+    
+    # Otherwise, complete with subcommands
+    COMPREPLY=($(compgen -W "${subcommands}" -- "${cur}"))
+}
+
+complete -F _git_merca git-merca

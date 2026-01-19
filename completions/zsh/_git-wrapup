@@ -5,16 +5,21 @@
 
 _git-wrapup() {
     local -a options
+    local state line
+    
     options=(
         '(-h --help)'{-h,--help}'[Show help message]'
         '(-v --version)'{-v,--version}'[Show version information]'
         '(-b --branch)'{-b,--branch}'[Create or switch to branch]:branch:__git_branch_names'
+        '(-f --from)'{-f,--from}'[Base branch for pull request]:branch:__git_branch_names'
         '(-n --no-changeset)'{-n,--no-changeset}'[Skip running pnpm changeset]'
+        '(-fnb)'{-fnb}'[Shorthand for -f <current-branch> -n -b]:branch:__git_branch_names'
         '(-d --dry-run)'{-d,--dry-run}'[Show what would be done without making changes]'
     )
 
     _arguments -C \
         $options \
+        '(-fnb)*:commit message:' \
         '1:commit message:'
 }
 

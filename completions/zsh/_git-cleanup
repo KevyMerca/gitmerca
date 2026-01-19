@@ -8,6 +8,7 @@ _git-cleanup() {
     options=(
         '(-h --help)'{-h,--help}'[Show help message]'
         '(-v --version)'{-v,--version}'[Show version information]'
+        '(-y --yes)'{-y,--yes}'[Skip confirmation prompt]'
     )
 
     _arguments -C $options

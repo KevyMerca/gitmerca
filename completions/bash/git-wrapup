@@ -1,0 +1,38 @@
+# Bash completion for git-wrapup
+# Source this file or place in ~/.bash_completion.d/
+
+_git_wrapup() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help -v --version -b --branch -f --from -n --no-changeset -fnb -d --dry-run"
+    
+    case "${prev}" in
+        -b|--branch|-f|--from)
+            # Complete branch names
+            local branches
+            branches=$(git branch --format='%(refname:short)' 2>/dev/null)
+            COMPREPLY=($(compgen -W "${branches}" -- "${cur}"))
+            return 0
+            ;;
+        -fnb)
+            # Complete branch names for -fnb option
+            local branches
+            branches=$(git branch --format='%(refname:short)' 2>/dev/null)
+            COMPREPLY=($(compgen -W "${branches}" -- "${cur}"))
+            return 0
+            ;;
+    esac
+    
+    # If current word starts with -, complete options
+    if [[ "${cur}" == -* ]]; then
+        COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
+        return 0
+    fi
+    
+    # Otherwise, complete with options (for commit message)
+    COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
+}
+
+complete -F _git_wrapup git-wrapup

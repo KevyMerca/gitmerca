@@ -16,8 +16,9 @@ Run the installation script to get started:
 
 1. 📁 Creates a `gitmerca` directory in your home folder
 2. 📋 Copies the custom Git commands and utilities
-3. 🔄 Adds the commands to your `PATH` in `.zshrc`
-4. ✨ Reloads your shell environment
+3. 🔄 Adds the commands to your `PATH` in your shell config
+4. ⌨️ Installs shell completions (Zsh, Bash, Fish) automatically
+5. ✨ Reloads your shell environment
 
 ### Uninstalling
 
@@ -51,7 +52,10 @@ git wrapup [options] <commit-message>
 Options:
   -b, --branch <name>     Create or switch to branch before changes
                           (allows running from develop branch)
+  -f, --from <branch>     Base branch for pull request (default: develop)
   -n, --no-changeset      Skip running pnpm changeset
+  -fnb <branch> <message> Shorthand for -f <current-branch> -n -b <branch> <message>
+                          Uses current branch as base, skips changeset, creates branch
   -v, --version           Show version information
   -h, --help              Show help message
 ```
@@ -67,6 +71,9 @@ Examples:
 ```sh
 git wrapup "feat: add new feature"
 git wrapup -b feature/new-thing "feat: add new feature"
+git wrapup -f main "feat: add new feature"  # Create PR targeting main
+git wrapup -f main -b feature/new-thing "feat: add new feature"
+git wrapup -fnb feature/new-thing "feat: add new feature"  # Shorthand: current branch as base, no changeset
 git wrapup -n "chore: quick fix"  # Skip changeset
 ```
 
@@ -121,6 +128,7 @@ All commands include:
 - ❌ Clear error messages
 - 🛡️ Git repository validation
 - 📋 Detailed progress feedback
+- ⌨️ Shell completion support (Zsh, Bash, Fish)
 
 ## 🔧 Meta Commands
 
